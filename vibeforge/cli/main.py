@@ -25,7 +25,7 @@ from vibeforge.router.complexity import HeuristicScorer, Scorer
 from vibeforge.router.executor import DEFAULT_OLLAMA_URL, OllamaExecutor
 from vibeforge.router.policy import PolicyRouter
 from vibeforge.router.registry import ConfigError, ModelRegistry, find_models_file
-from vibeforge.types import RoutingDecision, Task, TaskType
+from vibeforge.types import RoutingDecision, Task
 
 app = typer.Typer(
     name="vibeforge",
@@ -68,8 +68,8 @@ def _load_registry() -> ModelRegistry:
 @app.command()
 def route(
     prompt: str = typer.Argument(..., help="The coding prompt to route."),
-    task_type: TaskType = typer.Option(
-        TaskType.GENERATE, "--type", help="Kind of subtask (default: generate)."
+    task_type: str = typer.Option(
+        "generate", "--type", help="Kind of subtask (default: generate)."
     ),
     file_path: Path | None = typer.Option(
         None, "--file", help="File whose contents act as task context."
@@ -115,6 +115,13 @@ def route(
     unavailable.
     """
     registry = _load_registry()
+    if task_type not in registry.task_types:
+        typer.echo(
+            f"error: unknown task type '{task_type}' — "
+            f"known: {', '.join(registry.task_types.names)}",
+            err=True,
+        )
+        raise typer.Exit(code=1)
 
     context = ""
     if file_path is not None:
@@ -137,7 +144,9 @@ def route(
             registry=registry,
         )
     elif scorer == "heuristic":
-        router = PolicyRouter(scorer=HeuristicScorer(), registry=registry)
+        router = PolicyRouter(
+            scorer=HeuristicScorer(task_types=registry.task_types), registry=registry
+        )
     else:
         typer.echo(f"error: unknown scorer '{scorer}' (use 'heuristic' or 'embedding')", err=True)
         raise typer.Exit(code=1)
@@ -184,7 +193,7 @@ def route(
     if as_json:
         typer.echo(json.dumps(payload, indent=2))
     else:
-        typer.echo(f"task:          {task.type.value}: {task.prompt}")
+        typer.echo(f"task:          {task.type}: {task.prompt}")
         typer.echo(f"complexity:    {decision.complexity.value} (score {decision.score}/3)")
         typer.echo(f"chosen model:  {decision.model.name} ({decision.model.ollama_tag})")
         typer.echo(f"reason:        {decision.reason}")
@@ -297,7 +306,7 @@ def _render_model_run(run: ModelRun) -> None:
 
 @app.command("bench")
 def run(
-    task_type: TaskType | None = typer.Option(
+    task_type: str | None = typer.Option(
         None,
         "--task-type",
         help="Benchmark only this task type (default: all).",
@@ -321,11 +330,18 @@ def run(
     ``error`` column rather than aborting the benchmark.
     """
     registry = _load_registry()
+    if task_type is not None and task_type not in registry.task_types:
+        typer.echo(
+            f"error: unknown task type '{task_type}' — "
+            f"known: {', '.join(registry.task_types.names)}",
+            err=True,
+        )
+        raise typer.Exit(code=1)
     tasks = tasks_for(task_type) if task_type is not None else all_tasks()
 
     typer.echo(f"config:   {find_models_file()}")
     typer.echo(f"models:   {', '.join(m.name for m in registry.models)}")
-    typer.echo(f"tasks:    {len(tasks)} ({task_type.value if task_type else 'all types'})")
+    typer.echo(f"tasks:    {len(tasks)} ({task_type if task_type else 'all types'})")
     typer.echo("")
 
     runner = BenchmarkRunner(registry=registry, executor=OllamaExecutor(base_url=host), tasks=tasks)
@@ -398,8 +414,9 @@ def eval_command(
         raise typer.Exit(code=1) from exc
 
     scorers: dict[str, Scorer] = {}
+    task_types = _load_registry().task_types
     if "heuristic" in names:
-        scorers["heuristic"] = HeuristicScorer()
+        scorers["heuristic"] = HeuristicScorer(task_types=task_types)
     if "embedding" in names:
         scorers["embedding"] = EmbeddingScorer(client_host=host, model=embedding_model)
 
@@ -449,7 +466,7 @@ def compare_scorers(
     typer.echo("")
 
     comparison = ScorerComparison(
-        heuristic=HeuristicScorer(),
+        heuristic=HeuristicScorer(task_types=_load_registry().task_types),
         embedding=EmbeddingScorer(client_host=host, model=embedding_model),
     )
     rows = comparison.run(tasks)

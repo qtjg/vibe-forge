@@ -20,6 +20,7 @@ from typing import IO
 import yaml
 
 from vibeforge.router.schema import ConfigError, config_from_dict
+from vibeforge.router.task_types import TaskTypeRegistry
 from vibeforge.types import Complexity, ModelTier
 
 __all__ = ["ConfigError", "ModelPick", "ModelRegistry", "find_models_file"]
@@ -79,11 +80,15 @@ class ModelRegistry:
         ModelTier(name='balanced', ...)
     """
 
-    def __init__(self, models: Sequence[ModelTier]) -> None:
+    def __init__(
+        self, models: Sequence[ModelTier], task_types: TaskTypeRegistry | None = None
+    ) -> None:
         """Construct a registry from an explicit tier list.
 
         Args:
             models: At least one model tier; must not be empty.
+            task_types: The registered task-type catalog; the built-ins are
+                used when omitted.
 
         Raises:
             ConfigError: When ``models`` is empty or has duplicate names.
@@ -96,6 +101,7 @@ class ModelRegistry:
         self._models: tuple[ModelTier, ...] = tuple(
             sorted(models, key=lambda m: (m.approx_ram_gb, m.name))
         )
+        self._task_types = task_types if task_types is not None else TaskTypeRegistry.builtins()
 
     @classmethod
     def load_default(cls) -> ModelRegistry:
@@ -147,7 +153,13 @@ class ModelRegistry:
             )
             for tier in config.models
         )
-        return cls(tiers)
+        task_types = TaskTypeRegistry.from_config(config.custom_task_types)
+        return cls(tiers, task_types=task_types)
+
+    @property
+    def task_types(self) -> TaskTypeRegistry:
+        """Every registered task type (built-ins plus user-registered ones)."""
+        return self._task_types
 
     @property
     def models(self) -> tuple[ModelTier, ...]:

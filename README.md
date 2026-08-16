@@ -107,6 +107,24 @@ models:
 Tiers are assigned by `approx_ram_gb` — the smallest model whose ceiling covers the task
 wins. If nothing covers the task, the most capable model is the fallback (never a crash).
 
+### Custom task types (no code edits)
+
+Task types are a registry, not a hardcoded enum: add your own through the same
+`models.yaml` and they route like built-ins (`--type`, the dashboard, and
+`--compare` all accept them).
+
+```yaml
+custom_task_types:
+  - name: translate          # visible in --type / dashboard
+    baseline_rank: 1         # scoring baseline, 0 (trivial) .. 3 (high)
+    description: "Translate code between languages"
+```
+
+Types you register here are validated up front (a name that shadows a built-in,
+or duplicates, is a config error) and scored by the heuristic scorer at their
+baseline. The six built-ins stay: `autocomplete`, `explain`, `generate`,
+`refactor`, `debug`, `review`.
+
 ## How scoring works
 
 The `HeuristicScorer` (no ML dependencies, fully deterministic) produces a complexity in

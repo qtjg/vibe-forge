@@ -175,8 +175,8 @@ def test_bench_rejects_unknown_task_type(isolated: Path) -> None:
 
     result = runner.invoke(cli_main.app, ["bench", "--task-type", "nonsense"])
 
-    assert result.exit_code != 0
-    assert "nonsense" in result.output
+    assert result.exit_code == 1
+    assert "unknown task type 'nonsense'" in result.stderr
 
 
 def _install_fake_executor_factory(
@@ -332,3 +332,53 @@ def test_route_compare_conflicts_with_execute(isolated: Path) -> None:
 
     assert result.exit_code == 1
     assert "drop --execute" in result.stderr
+
+
+CUSTOM_TYPES_MODELS = """\
+models:
+  - name: tiny-fast
+    ollama_tag: qwen2.5:0.5b
+    complexity_ceiling: low
+    approx_ram_gb: 0.6
+  - name: heavy
+    ollama_tag: qwen2.5-coder:14b
+    complexity_ceiling: high
+    approx_ram_gb: 9.0
+custom_task_types:
+  - name: translate
+    baseline_rank: 1
+    description: "Translate code comments between languages."
+"""
+
+
+def test_route_accepts_a_custom_task_type_from_config(isolated: Path) -> None:
+    isolated.write_text(CUSTOM_TYPES_MODELS)
+
+    result = runner.invoke(
+        cli_main.app, ["route", "turn these comments into French", "--type", "translate"]
+    )
+
+    assert result.exit_code == 0
+    assert "translate" in result.stdout
+    assert "baseline translate=1" in result.stdout
+
+
+def test_route_rejects_unknown_task_type(isolated: Path) -> None:
+    isolated.write_text(MODELS_OK)
+
+    result = runner.invoke(cli_main.app, ["route", "hi", "--type", "nonsense"])
+
+    assert result.exit_code == 1
+    assert "unknown task type 'nonsense'" in result.stderr
+    assert "autocomplete" in result.stderr
+
+
+def test_route_unknown_type_error_lists_custom_types(isolated: Path) -> None:
+    isolated.write_text(CUSTOM_TYPES_MODELS)
+
+    result = runner.invoke(cli_main.app, ["route", "hi", "--type", "nonsense"])
+
+    assert result.exit_code == 1
+    assert "translate" in result.stderr
+
+

@@ -247,3 +247,36 @@ def test_token_budget_rises_with_complexity() -> None:
     assert Complexity.LOW.token_budget == 256
     assert Complexity.MEDIUM.token_budget == 1024
     assert Complexity.HIGH.token_budget == 4096
+
+
+def test_custom_task_types_are_scored_at_their_registered_baseline() -> None:
+    from vibeforge.router.task_types import TaskTypeDefinition, TaskTypeRegistry
+
+    registry = TaskTypeRegistry.from_config(
+        [TaskTypeDefinition("translate", 0, "doc"), TaskTypeDefinition("migrate", 3, "doc")]
+    )
+    scorer = HeuristicScorer(task_types=registry)
+
+    complexity, reason = scorer.score(Task(type="translate", prompt="short prompt"))
+    assert complexity is Complexity.TRIVIAL
+    assert "baseline translate=0" in reason
+
+    complexity, _ = scorer.score(Task(type="migrate", prompt="short prompt"))
+    assert complexity is Complexity.HIGH
+    assert scorer.score(Task(type="migrate", prompt="short prompt"))[0] is Complexity.HIGH
+
+
+def test_unregistered_task_type_uses_the_default_baseline() -> None:
+    scorer = HeuristicScorer()
+    complexity, reason = scorer.score(Task(type="totally-new", prompt="short prompt"))
+    assert complexity is Complexity.LOW
+    assert "baseline totally-new=1" in reason
+
+
+def test_explicit_baseline_ranks_override_registry_defaults() -> None:
+    from vibeforge.router.task_types import TaskTypeDefinition, TaskTypeRegistry
+
+    registry = TaskTypeRegistry.from_config([TaskTypeDefinition("translate", 0, "doc")])
+    scorer = HeuristicScorer(task_types=registry, baseline_ranks={"translate": 2})
+    complexity, _ = scorer.score(Task(type="translate", prompt="short prompt"))
+    assert complexity is Complexity.MEDIUM

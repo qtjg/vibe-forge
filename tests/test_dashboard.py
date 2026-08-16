@@ -268,3 +268,36 @@ def test_execute_rejects_invalid_bodies(client: TestClient) -> None:
         ).status_code
         == 400
     )
+
+
+def test_route_default_task_type_is_generate(client: TestClient) -> None:
+    response = client.post("/api/route", json={"prompt": "explain this regex"})
+    assert response.status_code == 200
+    assert response.json()["task_type"] == "generate"
+
+
+def _custom_registry() -> ModelRegistry:
+    from vibeforge.router.task_types import TaskTypeDefinition, TaskTypeRegistry
+    from vibeforge.types import Complexity, ModelTier
+
+    task_types = TaskTypeRegistry.from_config([TaskTypeDefinition("translate", 1, "doc")])
+    return ModelRegistry(
+        models=(ModelTier("tiny-fast", "qwen2.5:0.5b", Complexity.TRIVIAL, 0.6),),
+        task_types=task_types,
+    )
+
+
+def test_route_accepts_custom_task_type_from_registry() -> None:
+    client = TestClient(create_app(registry_factory=_custom_registry))
+
+    response = client.post("/api/route", json={"prompt": "bonjour", "task_type": "translate"})
+    assert response.status_code == 200
+    assert response.json()["task_type"] == "translate"
+
+
+def test_route_rejects_unknown_type_with_known_list() -> None:
+    client = TestClient(create_app(registry_factory=_custom_registry))
+
+    response = client.post("/api/route", json={"prompt": "hi", "task_type": "nonsense"})
+    assert response.status_code == 400
+    assert "translate" in response.json()["detail"]

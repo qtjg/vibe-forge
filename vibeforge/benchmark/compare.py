@@ -61,7 +61,7 @@ class ScorerComparison:
             rows.append(
                 {
                     "task_id": task.id,
-                    "task_type": task.type.value,
+                    "task_type": task.type,
                     "heuristic_tier": h_tier.value,
                     "embedding_tier": e_tier.value,
                     "agree": h_tier is e_tier,

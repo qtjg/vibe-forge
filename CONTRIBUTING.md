@@ -19,11 +19,19 @@ ruff format --check .   # format check
 
 ## Adding a new TaskType
 
+The bulk of this is **user land, no code edits**: task types are a registry,
+not an enum. Users add types through `custom_task_types` in their
+`models.yaml` (see the README's Configuration section) — the type gets a
+name, a baseline rank (0..3), and routes through the normal path.
+
+Only *built-in* types live in the enum (`TaskType` in
+`vibeforge/types.py`). Promoting a custom type to a built-in means:
+
 1. Add the value to the `TaskType` enum in `vibeforge/types.py`
    (e.g. `DOCUMENT = "document"`).
-2. Add a baseline rank in `BASELINE_RANKS` in
-   `vibeforge/router/complexity.py` — think about whether it's cheap
-   (`autocomplete`-like) or heavy (`debug`/`review`-like).
+2. Add a definition to `BUILTIN_TASK_TYPES` in
+   `vibeforge/router/task_types.py` (baselines are seeded from there — the
+   module asserts the tuple stays in sync with the enum).
 3. Add at least 5 benchmark prompts in `vibeforge/benchmark/tasks.py`
    (ids must be unique, one per difficulty level).
 4. Add a `test_baseline_tier_per_task_type` parameter to

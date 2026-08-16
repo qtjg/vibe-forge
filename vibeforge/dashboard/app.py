@@ -41,7 +41,7 @@ from vibeforge.router.complexity import HeuristicScorer
 from vibeforge.router.executor import OllamaExecutor
 from vibeforge.router.policy import PolicyRouter
 from vibeforge.router.registry import ModelRegistry
-from vibeforge.types import Task, TaskType
+from vibeforge.types import Task
 
 #: Where the no-build static frontend lives inside the installed package.
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -141,10 +141,12 @@ def create_app(
             registry = ModelRegistry.load_default()
         task = Task(
             prompt=prompt,
-            type=TaskType(task_type) if task_type else TaskType.CODE,
+            type=task_type if task_type else "generate",
             context=context or "",
         )
-        decision = PolicyRouter(scorer=HeuristicScorer(), registry=registry).route(task)
+        decision = PolicyRouter(
+            scorer=HeuristicScorer(task_types=registry.task_types), registry=registry
+        ).route(task)
         as_dict = decision.as_dict()
         store.add(as_dict)
         return as_dict
@@ -194,18 +196,25 @@ def create_app(
         task_type = body.get("task_type")
         if task_type is not None and not isinstance(task_type, str):
             raise HTTPException(status_code=400, detail="'task_type' must be a string")
-        if task_type not in (None, *[t.value for t in TaskType]):
-            raise HTTPException(
-                status_code=400,
-                detail=f"'task_type' must be one of {[t.value for t in TaskType]}",
-            )
         context = body.get("context")
         if context is not None and not isinstance(context, str):
             raise HTTPException(status_code=400, detail="'context' must be a string")
         try:
+            registry = (
+                registry_factory()
+                if registry_factory is not None
+                else ModelRegistry.load_default()
+            )
+            if task_type is not None and task_type not in registry.task_types:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"'task_type' must be one of {list(registry.task_types.names)}",
+                )
             return await asyncio.to_thread(
                 _route_request, prompt=prompt, task_type=task_type, context=context
             )
+        except HTTPException:
+            raise
         except Exception as exc:
             raise HTTPException(status_code=500, detail=f"routing failed: {exc}") from exc
 

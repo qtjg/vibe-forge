@@ -22,17 +22,23 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping, Sequence
 
-from vibeforge.types import Complexity, Task, TaskType
+from vibeforge.router.task_types import (
+    DEFAULT_BASELINE_RANK,
+    TaskTypeRegistry,
+)
+from vibeforge.types import Complexity, Task
 
-#: Rank (0..3) used as the scoring baseline per task type.
+#: Rank (0..3) used as the scoring baseline per built-in task type.
 #: Cheap tasks (autocomplete) start at trivial; debug/review start heavy.
-BASELINE_RANKS: dict[TaskType, int] = {
-    TaskType.AUTOCOMPLETE: 0,  # trivial
-    TaskType.EXPLAIN: 1,  # low
-    TaskType.GENERATE: 1,  # low -- "say hi" is easy, length bumps it up
-    TaskType.REFACTOR: 2,  # medium
-    TaskType.DEBUG: 2,  # medium
-    TaskType.REVIEW: 2,  # medium
+#: Keys are plain type strings -- custom types registered in models.yaml
+#: are merged on top at registry build time.
+BASELINE_RANKS: dict[str, int] = {
+    "autocomplete": 0,  # trivial
+    "explain": 1,  # low
+    "generate": 1,  # low -- "say hi" is easy, length bumps it up
+    "refactor": 2,  # medium
+    "debug": 2,  # medium
+    "review": 2,  # medium
 }
 
 #: High-signal keywords that mark out hard problems. Multi-word phrases and
@@ -122,16 +128,17 @@ class HeuristicScorer:
 
     def __init__(
         self,
-        baseline_ranks: Mapping[TaskType, int] | None = None,
+        baseline_ranks: Mapping[str, int] | None = None,
         length_bumps: Sequence[tuple[int, int]] | None = None,
         high_signal_keywords: Sequence[str] | None = None,
         keyword_double_hit_threshold: int = KEYWORD_DOUBLE_HIT_THRESHOLD,
+        task_types: TaskTypeRegistry | None = None,
     ) -> None:
         """Configure the scoring signals.
 
         Args:
             baseline_ranks: Per-task-type baseline ranks; missing task types
-                fall back to the defaults.
+                fall back to the registry defaults.
             length_bumps: ``(word_threshold, score_bump)`` pairs applied in
                 descending threshold order (largest applicable threshold
                 wins).
@@ -139,8 +146,19 @@ class HeuristicScorer:
                 boundaries.
             keyword_double_hit_threshold: Distinct hits needed for a second
                 keyword bump.
+            task_types: The registered task-type catalog. When given,
+                every registered type (including user-defined ones) is
+                seeded at its baseline before ``baseline_ranks`` overrides
+                apply; unregistered types fall back to the registry
+                default baseline.
         """
-        merged_baselines = dict(BASELINE_RANKS)
+        if task_types is not None:
+            merged_baselines = {
+                definition.name: definition.baseline_rank
+                for definition in task_types.definitions
+            }
+        else:
+            merged_baselines = dict(BASELINE_RANKS)
         if baseline_ranks:
             merged_baselines.update(baseline_ranks)
         self._baseline_ranks = merged_baselines
@@ -176,7 +194,7 @@ class HeuristicScorer:
 
     def _evaluate(self, task: Task) -> tuple[Complexity, str, float]:
         """Internal evaluation returning (complexity, reason, confidence)."""
-        baseline = self._baseline_ranks[task.type]
+        baseline = self._baseline_ranks.get(task.type, DEFAULT_BASELINE_RANK)
         score = baseline
         confidence = _CONFIDENCE_BASE
         events: list[str] = []
@@ -213,7 +231,7 @@ class HeuristicScorer:
         confidence = min(confidence, _CONFIDENCE_CAP)
 
         complexity = Complexity.at(score)
-        reason = f"baseline {task.type.value}={baseline}"
+        reason = f"baseline {task.type}={baseline}"
         if events:
             reason += " " + " ".join(events)
         reason += f" => score {score}/3 ({complexity.value})"

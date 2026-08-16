@@ -28,14 +28,14 @@ class BenchmarkTask:
     """
 
     id: str
-    type: TaskType
+    type: str
     prompt: str
     context: str = ""
     note: str = ""
 
 
 def _t(
-    id_prefix: str, task_type: TaskType, prompt: str, context: str = "", note: str = ""
+    id_prefix: str, task_type: str, prompt: str, context: str = "", note: str = ""
 ) -> BenchmarkTask:
     """Build a task with the prefixed stable id."""
     return BenchmarkTask(
@@ -314,7 +314,7 @@ def all_tasks() -> Sequence[BenchmarkTask]:
     return TASKS
 
 
-def tasks_for(task_type: TaskType) -> Sequence[BenchmarkTask]:
+def tasks_for(task_type: str) -> Sequence[BenchmarkTask]:
     """Return the benchmark tasks for a single task type."""
     return tuple(task for task in TASKS if task.type is task_type)
 

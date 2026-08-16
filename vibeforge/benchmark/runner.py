@@ -77,7 +77,7 @@ class BenchmarkRow:
         self.model_name = model.name
         self.model_tag = model.ollama_tag
         self.task_id = task.id
-        self.task_type = task.type.value
+        self.task_type = task.type
         self.latency_ms = result.latency_ms
         self.eval_count = result.eval_count
         self.tokens_per_sec = result.tokens_per_sec

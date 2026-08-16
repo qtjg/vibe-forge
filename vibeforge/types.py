@@ -26,7 +26,13 @@ __all__ = [
 
 
 class TaskType(enum.StrEnum):
-    """The kind of coding subtask being routed."""
+    """The built-in task type catalog.
+
+    Routing itself treats task types as plain strings (see
+    :class:`Task.type`): the catalog here is the set of well-known
+    built-ins, and :class:`vibeforge.router.task_types.TaskTypeRegistry`
+    extends it with user-registered types from ``models.yaml``.
+    """
 
     AUTOCOMPLETE = "autocomplete"
     EXPLAIN = "explain"
@@ -78,7 +84,7 @@ class Task:
 
     """
 
-    type: TaskType
+    type: str
     prompt: str
     context: str = ""
     file_path: str | None = None
@@ -143,7 +149,7 @@ class RoutingDecision:
         """Serialize to a plain JSON-ready dict (the dashboard API shape)."""
         return {
             "timestamp": self.timestamp.isoformat(),
-            "task_type": self.task.type.value,
+            "task_type": self.task.type,
             "prompt": self.task.prompt,
             "file_path": self.task.file_path,
             "score": self.score,

@@ -25,7 +25,7 @@ from pathlib import Path
 
 import yaml
 
-from vibeforge.types import Complexity, Task, TaskType
+from vibeforge.types import Complexity, Task
 
 __all__ = ["EvalTask", "load_eval_set", "DEFAULT_EVAL_SET"]
 
@@ -60,8 +60,13 @@ class EvalTask:
     rationale: str
 
     def as_routing_task(self) -> Task:
-        """Convert to a router :class:`Task` for scoring."""
-        return Task(type=TaskType(self.task_type), prompt=self.prompt)
+        """Convert to a router :class:`Task` for scoring.
+
+        The type flows through as the plain string stored in the set; any
+        validation against what routing actually knows about happens at
+        scoring time, not here.
+        """
+        return Task(type=self.task_type, prompt=self.prompt)
 
 
 def load_eval_set(path: str | Path | None = None) -> tuple[EvalTask, ...]:
