@@ -1,0 +1,46 @@
+{
+  "name": "vibe-forge",
+  "displayName": "vibe-forge",
+  "description": "Route the selected text through the local vibe-forge dashboard: pick a model, then run it.",
+  "version": "0.2.0",
+  "publisher": "vibe-forge",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:vibeForge.routeSelection"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "vibeForge.routeSelection",
+        "title": "vibe-forge: Route Selection"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "vibeForge.routeSelection",
+          "when": "editorHasSelection"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "vibe-forge",
+      "properties": {
+        "vibeForge.dashboardUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8420",
+          "description": "Base URL of the local vibe-forge dashboard (vibeforge serve)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "lint": "node --check extension.js"
+  }
+}

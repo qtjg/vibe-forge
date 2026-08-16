@@ -13,14 +13,20 @@ API contract (stable; ``index.html`` polls these directly, no build step):
 - ``GET /api/stats`` -> ``{"models": [...]}`` per-model usage + latency.
 - ``POST /api/decisions`` accepts one decision dict (see the CLI for the
   exact shape produced by ``RoutingDecision.as_dict()``) and stores it.
+- ``POST /api/route`` accepts ``{"prompt", "task_type"?, "context"?}``,
+  runs the routing policy, stores the resulting decision, and returns it.
+  This is the endpoint the VS Code extension drives.
+- ``POST /api/execute`` accepts ``{"prompt", "model_tag"}`` and runs it
+  through the configured executor (retries, backoff, latency included).
 
 Add new fields to decision dicts, never rename existing ones.
 """
 
 from __future__ import annotations
 
+import asyncio
 import threading
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -31,6 +37,11 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from vibeforge.dashboard.store import HistoryDB
+from vibeforge.router.complexity import HeuristicScorer
+from vibeforge.router.executor import OllamaExecutor
+from vibeforge.router.policy import PolicyRouter
+from vibeforge.router.registry import ModelRegistry
+from vibeforge.types import Task, TaskType
 
 #: Where the no-build static frontend lives inside the installed package.
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -75,6 +86,8 @@ class DecisionStore:
 def create_app(
     history: list[dict[str, Any]] | None = None,
     db_path: str | Path | None = None,
+    executor_factory: Callable[[], OllamaExecutor] | None = None,
+    registry_factory: Callable[[], ModelRegistry] | None = None,
 ) -> FastAPI:
     """Build the dashboard application.
 
@@ -82,6 +95,10 @@ def create_app(
         history: Optional pre-seeded decisions (in-memory runs only).
         db_path: Optional SQLite file path; when given, decisions persist
             across restarts. Without it the dashboard stays in-memory.
+        executor_factory: Callable building an :class:`OllamaExecutor` used
+            by ``POST /api/execute``; inject one to test without Ollama.
+        registry_factory: Callable building the :class:`ModelRegistry` used
+            by ``POST /api/route``; inject one to test without a config.
 
     Returns:
         A configured :class:`FastAPI` application.
@@ -107,6 +124,30 @@ def create_app(
     )
     app.state.store = store
     app.state.db_path = str(db_path) if db_path is not None else None
+
+    def _executor() -> OllamaExecutor:
+        """Build the executor for /api/execute (overridable in tests)."""
+        if executor_factory is not None:
+            return executor_factory()
+        return OllamaExecutor()
+
+    def _route_request(
+        prompt: str, task_type: str | None, context: str | None
+    ) -> dict[str, object]:
+        """Score ``prompt`` and store the resulting decision (sync, CPU)."""
+        if registry_factory is not None:
+            registry = registry_factory()
+        else:
+            registry = ModelRegistry.load_default()
+        task = Task(
+            prompt=prompt,
+            type=TaskType(task_type) if task_type else TaskType.CODE,
+            context=context or "",
+        )
+        decision = PolicyRouter(scorer=HeuristicScorer(), registry=registry).route(task)
+        as_dict = decision.as_dict()
+        store.add(as_dict)
+        return as_dict
 
     @app.get("/")
     def index() -> FileResponse:
@@ -138,8 +179,82 @@ def create_app(
         store.add(body)
         return {"status": "ok"}
 
+    @app.post("/api/route")
+    async def route_request(request: Request) -> dict[str, object]:
+        """Score a prompt with the routing policy and store the decision.
+
+        Body: ``{"prompt": str, "task_type"?: str, "context"?: str}``.
+        Used by the VS Code extension and other local clients.
+        """
+        body: dict[str, Any]
+        body = await _json_body(request)
+        prompt = body.get("prompt")
+        if not isinstance(prompt, str) or not prompt.strip():
+            raise HTTPException(status_code=400, detail="'prompt' must be a non-empty string")
+        task_type = body.get("task_type")
+        if task_type is not None and not isinstance(task_type, str):
+            raise HTTPException(status_code=400, detail="'task_type' must be a string")
+        if task_type not in (None, *[t.value for t in TaskType]):
+            raise HTTPException(
+                status_code=400,
+                detail=f"'task_type' must be one of {[t.value for t in TaskType]}",
+            )
+        context = body.get("context")
+        if context is not None and not isinstance(context, str):
+            raise HTTPException(status_code=400, detail="'context' must be a string")
+        try:
+            return await asyncio.to_thread(
+                _route_request, prompt=prompt, task_type=task_type, context=context
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"routing failed: {exc}") from exc
+
+    @app.post("/api/execute")
+    async def execute_request(request: Request) -> dict[str, object]:
+        """Run a prompt through the configured Ollama executor.
+
+        Body: ``{"prompt": str, "model_tag": str, "options"?: dict}``.
+        The executor handles retries and backoff; failures are reported in
+        the response, never as HTTP errors for expected failure modes.
+        """
+        body = await _json_body(request)
+        prompt = body.get("prompt")
+        if not isinstance(prompt, str) or not prompt.strip():
+            raise HTTPException(status_code=400, detail="'prompt' must be a non-empty string")
+        model_tag = body.get("model_tag")
+        if not isinstance(model_tag, str) or not model_tag.strip():
+            raise HTTPException(status_code=400, detail="'model_tag' must be a non-empty string")
+        options = body.get("options") if "options" in body else {}
+        if not isinstance(options, dict):
+            raise HTTPException(status_code=400, detail="'options' must be an object")
+        result = await asyncio.to_thread(
+            _executor().execute,
+            model_tag=model_tag,
+            prompt=prompt,
+            options=options if options else None,
+        )
+        return {
+            "status": "ok" if result.error_kind is None else "error",
+            "output": result.output,
+            "error": result.error,
+            "error_kind": result.error_kind,
+            "latency_ms": result.latency_ms,
+            "eval_count": result.eval_count,
+        }
+
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     return app
+
+
+async def _json_body(request: Request) -> dict[str, Any]:
+    """Parse a JSON object request body, or raise 400."""
+    try:
+        body = await request.json()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="body must be valid JSON") from exc
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="body must be a JSON object")
+    return body
 
 
 def _compute_stats(decisions: list[dict[str, Any]]) -> list[dict[str, object]]:

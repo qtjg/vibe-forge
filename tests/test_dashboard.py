@@ -9,6 +9,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from vibeforge.dashboard.app import create_app
+from vibeforge.router.registry import ModelRegistry
+from vibeforge.types import Complexity, ExecutionResult, ModelTier
 
 
 def make_decision(
@@ -146,3 +148,123 @@ def test_in_memory_app_has_no_db_file() -> None:
     app = create_app()
     assert app.state.db_path is None
     assert len(app.state.store) == 0
+
+
+class FixedExecutor:
+    """An executor-shaped fake returning a canned ExecutionResult."""
+
+    def __init__(self, result: ExecutionResult) -> None:
+        self._result = result
+        self.calls: list[tuple[str, str]] = []
+
+    def execute(self, model_tag: str, prompt: str, options: dict | None = None) -> ExecutionResult:
+        self.calls.append((model_tag, prompt))
+        return self._result
+
+
+def fixed_registry() -> ModelRegistry:
+    """A registry with one tier per complexity band, config-free."""
+    return ModelRegistry(
+        [
+            ModelTier(
+                name="balanced",
+                ollama_tag="l:latest",
+                complexity_ceiling=Complexity.HIGH,
+                approx_ram_gb=8.0,
+            ),
+        ]
+    )
+
+
+def test_route_scores_and_stores_decision() -> None:
+    client = TestClient(create_app(registry_factory=fixed_registry))
+
+    response = client.post(
+        "/api/route", json={"prompt": "explain this regex", "task_type": "explain"}
+    )
+
+    assert response.status_code == 200
+    decision = response.json()
+    assert decision["prompt"] == "explain this regex"
+    assert decision["task_type"] == "explain"
+    assert decision["model"] == "balanced"
+    assert decision["complexity"] in {t.value for t in Complexity}
+
+    stored = client.get("/api/decisions").json()["decisions"]
+    assert len(stored) == 1
+    assert stored[0]["prompt"] == "explain this regex"
+
+
+def test_route_rejects_bad_bodies(client: TestClient) -> None:
+    assert client.post("/api/route", json={}).status_code == 400
+    assert client.post("/api/route", json={"prompt": ""}).status_code == 400
+    assert (
+        client.post("/api/route", json={"prompt": "hi", "task_type": "nonsense"}).status_code == 400
+    )
+    assert client.post("/api/route", json=[1, 2]).status_code == 400
+    assert (
+        client.post(
+            "/api/route", content=b"not json", headers={"content-type": "application/json"}
+        ).status_code
+        == 400
+    )
+
+
+def test_route_reports_routing_failures() -> None:
+    def boom() -> ModelRegistry:
+        raise RuntimeError("registry exploded")
+
+    client = TestClient(create_app(registry_factory=boom))
+    response = client.post("/api/route", json={"prompt": "hi"})
+    assert response.status_code == 500
+    assert "routing failed" in response.json()["detail"]
+
+
+def test_execute_returns_output_and_latency() -> None:
+    result = ExecutionResult(
+        model="l:latest", prompt="hi", latency_ms=12.5, eval_count=7, output="hello"
+    )
+    client = TestClient(create_app(executor_factory=lambda: FixedExecutor(result)))
+
+    response = client.post("/api/execute", json={"prompt": "hi", "model_tag": "l:latest"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body == {
+        "status": "ok",
+        "output": "hello",
+        "error": None,
+        "error_kind": None,
+        "latency_ms": 12.5,
+        "eval_count": 7,
+    }
+
+
+def test_execute_reports_failure_without_http_error() -> None:
+    result = ExecutionResult(
+        model="l:latest",
+        prompt="hi",
+        latency_ms=3.0,
+        error="cannot reach Ollama",
+        error_kind="connection",
+    )
+    client = TestClient(create_app(executor_factory=lambda: FixedExecutor(result)))
+
+    response = client.post("/api/execute", json={"prompt": "hi", "model_tag": "l:latest"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "error"
+    assert body["error_kind"] == "connection"
+
+
+def test_execute_rejects_invalid_bodies(client: TestClient) -> None:
+    assert client.post("/api/execute", json={}).status_code == 400
+    assert client.post("/api/execute", json={"prompt": "hi"}).status_code == 400
+    assert client.post("/api/execute", json={"prompt": "hi", "model_tag": ""}).status_code == 400
+    assert (
+        client.post(
+            "/api/execute", json={"prompt": "hi", "model_tag": "l", "options": [1]}
+        ).status_code
+        == 400
+    )
