@@ -32,7 +32,8 @@ complexity — so trivial tasks hit small fast models and hard tasks hit stronge
 
 Each layer is a swappable unit: a new Scorer, a new model lineup, or a new executor can be
 dropped in without touching the rest. Every decision carries a plain-English `reason`, so
-routing is auditable end to end.
+routing is auditable end to end. An experimental embeddings-based scorer can be swapped in
+per-call (`route --scorer embedding`) without touching the policy.
 
 ## Quickstart
 
@@ -119,6 +120,19 @@ keywords, length thresholds) can be tuned per instance:
 strict = HeuristicScorer(baseline_ranks={TaskType.REVIEW: 3}, length_bumps=((100, 1),))
 ```
 
+### Experimental: embeddings-based scoring
+
+`EmbeddingScorer` (opt-in via `route --scorer embedding --embedding-model nomic-embed-text`)
+embeds the task against labeled example prompts bundled in
+`vibeforge/data/embedding-examples.yaml` and picks the closest tier. Seed embeddings are
+cached per model; when no embeddings can be computed the scorer falls back to the heuristic
+and says so in the `reason`. It also never raises.
+
+Honest first numbers: on the 36-task suite the embedding scorer agreed with the heuristic
+on **12/36 tiers (33.3%)** but was ~two orders of magnitude slower (~100 ms/task warm vs
+~0.2 ms, plus model load). Raw data: `results/scorer-comparison.csv`. This is a research
+artifact, not a claim of an improvement — agreement, not accuracy.
+
 ## Benchmarking
 
 `vibeforge bench` runs the fixed 36-task suite against every model in your registry
@@ -135,6 +149,21 @@ Each row: `model_name, model_tag, task_id, task_type, latency_ms, eval_count,
 tokens_per_sec, output_chars, error`. Failures are recorded in the `error` column, never
 aborting the run.
 
+To compare the heuristic scorer against the embedding scorer on the same 36 tasks
+(one row per task, both tier choices + per-call latency):
+
+```bash
+vibeforge compare-scorers --output results/scorer-comparison.csv
+```
+
+## VS Code extension
+
+A minimal extension ([`vscode-extension/`](vscode-extension/)) routes the selected text
+through a running dashboard (`vibeforge serve`) and can execute the prompt against the
+chosen model. Selection → **vibe-forge: Route Selection** → decision popup → “Run it” puts
+the generated output in a `vibe-forge` output channel. It talks only to the dashboard API
+(`POST /api/route`, `POST /api/execute`) — see its README for the local install steps.
+
 ## Project layout
 
 ```
@@ -142,22 +171,27 @@ vibeforge/
 ├── types.py              # Task, Complexity, ModelTier, RoutingDecision, ExecutionResult
 ├── router/
 │   ├── complexity.py     # Scorer protocol + HeuristicScorer (rule-based)
+│   ├── embedding.py      # EmbeddingScorer (experimental, nearest-neighbor)
 │   ├── registry.py       # ModelRegistry: models.yaml -> cheapest covering tier
 │   ├── policy.py         # PolicyRouter: score -> pick -> history
-│   └── executor.py       # OllamaExecutor: /api/generate, latency, graceful errors
-├── benchmark/            # fixed 36-task suite + runner (CSV out)
-├── dashboard/            # FastAPI app + vanilla-JS static page
-└── cli/                  # vibeforge route | bench | serve
+│   └── executor.py       # OllamaExecutor via the official ollama client
+├── benchmark/            # fixed 36-task suite + runner + scorer comparison (CSV out)
+├── dashboard/            # FastAPI app + SQLite decision store + vanilla-JS static page
+└── cli/                  # vibeforge route | bench | serve | compare-scorers
 ```
 
 ## Development
 
 ```bash
 pip install -e ".[dev]"
-pytest            # 134 tests, no Ollama required (HTTP is mocked)
+pytest            # 167 tests, no Ollama required (HTTP is mocked)
 ruff check .      # lint
 ruff format --check .  # formatting
 ```
+
+The dashboard API has no build step; the contract is covered by
+`tests/test_dashboard.py` (decisions/stats, route, execute, persistence), and the VS Code
+extension is thin glue over that contract.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how to add task types, scorers, and tasks.
 
