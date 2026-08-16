@@ -153,9 +153,7 @@ def route(
     decision = router.route(task)
 
     if compare and execute:
-        typer.echo(
-            "error: --compare already runs the prompt; drop --execute", err=True
-        )
+        typer.echo("error: --compare already runs the prompt; drop --execute", err=True)
         raise typer.Exit(code=1)
 
     if compare:
@@ -236,8 +234,7 @@ def _run_comparison(
     unknown = [name for name in names if name not in known]
     if unknown:
         typer.echo(
-            f"error: unknown tier name(s) {', '.join(unknown)} "
-            f"(known: {', '.join(sorted(known))})",
+            f"error: unknown tier name(s) {', '.join(unknown)} (known: {', '.join(sorted(known))})",
             err=True,
         )
         raise typer.Exit(code=1)
@@ -285,9 +282,7 @@ def _run_comparison(
         latency = f"{run.latency_ms:.0f}ms" if run.latency_ms is not None else "--"
         tokens = str(run.result.eval_count) if run.result.eval_count is not None else "--"
         status = "ok" if run.ok else "FAILED"
-        typer.echo(
-            f"  {run.name:<16}{run.ollama_tag:<28}{latency:>10}{tokens:>8}  {status}"
-        )
+        typer.echo(f"  {run.name:<16}{run.ollama_tag:<28}{latency:>10}{tokens:>8}  {status}")
 
 
 def _render_model_run(run: ModelRun) -> None:

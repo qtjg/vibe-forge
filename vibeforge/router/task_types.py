@@ -97,9 +97,7 @@ class TaskTypeRegistry:
         return cls(BUILTIN_TASK_TYPES)
 
     @classmethod
-    def from_config(
-        cls, custom_types: Sequence[object] | None = None
-    ) -> TaskTypeRegistry:
+    def from_config(cls, custom_types: Sequence[object] | None = None) -> TaskTypeRegistry:
         """Built-ins merged with the ``custom_task_types`` config entries.
 
         Args:
@@ -122,13 +120,9 @@ class TaskTypeRegistry:
         seen: set[str] = set()
         for entry in custom:
             if entry.name in builtin_names:
-                raise ConfigError(
-                    f"custom task type {entry.name!r} shadows a built-in type"
-                )
+                raise ConfigError(f"custom task type {entry.name!r} shadows a built-in type")
             if entry.name in seen:
-                raise ConfigError(
-                    f"duplicate task type names: {sorted({entry.name})}"
-                )
+                raise ConfigError(f"duplicate task type names: {sorted({entry.name})}")
             seen.add(entry.name)
         return cls((*BUILTIN_TASK_TYPES, *custom))
 

@@ -380,5 +380,3 @@ def test_route_unknown_type_error_lists_custom_types(isolated: Path) -> None:
 
     assert result.exit_code == 1
     assert "translate" in result.stderr
-
-

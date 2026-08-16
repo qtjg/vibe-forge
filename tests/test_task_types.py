@@ -117,9 +117,7 @@ def test_custom_type_routes_end_to_end() -> None:
     from vibeforge.types import Complexity, Task
 
     registry = ModelRegistry.from_yaml(CUSTOMS_YAML)
-    router = PolicyRouter(
-        scorer=HeuristicScorer(task_types=registry.task_types), registry=registry
-    )
+    router = PolicyRouter(scorer=HeuristicScorer(task_types=registry.task_types), registry=registry)
 
     decision = router.route(Task(type="translate", prompt="short prompt"))
     assert decision.complexity is Complexity.LOW

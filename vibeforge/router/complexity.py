@@ -154,8 +154,7 @@ class HeuristicScorer:
         """
         if task_types is not None:
             merged_baselines = {
-                definition.name: definition.baseline_rank
-                for definition in task_types.definitions
+                definition.name: definition.baseline_rank for definition in task_types.definitions
             }
         else:
             merged_baselines = dict(BASELINE_RANKS)

@@ -201,9 +201,7 @@ def create_app(
             raise HTTPException(status_code=400, detail="'context' must be a string")
         try:
             registry = (
-                registry_factory()
-                if registry_factory is not None
-                else ModelRegistry.load_default()
+                registry_factory() if registry_factory is not None else ModelRegistry.load_default()
             )
             if task_type is not None and task_type not in registry.task_types:
                 raise HTTPException(
