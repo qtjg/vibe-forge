@@ -106,19 +106,9 @@ class HeuristicScorer:
     """Rule-based scorer: baseline + length + keyword signals, clamped to 0..3.
 
     Deterministic and dependency-free, which keeps routing explainable,
-    testable, and fast (no ML inference to score a task).
-
-    Every tuning knob defaults to the module-level constants and can be
-    overridden per instance:
-
-    Args:
-        baseline_ranks: Per-task-type baseline ranks; missing task types
-            fall back to the defaults.
-        length_bumps: ``(word_threshold, score_bump)`` pairs applied in
-            descending threshold order (largest applicable threshold wins).
-        high_signal_keywords: Keyword literals matched on word boundaries.
-        keyword_double_hit_threshold: Distinct hits needed for a second
-            keyword bump.
+    testable, and fast (no ML inference to score a task). Every tuning knob
+    defaults to the module-level constants and can be overridden per
+    instance.
 
     Examples:
         >>> strict = HeuristicScorer(
@@ -137,6 +127,19 @@ class HeuristicScorer:
         high_signal_keywords: Sequence[str] | None = None,
         keyword_double_hit_threshold: int = KEYWORD_DOUBLE_HIT_THRESHOLD,
     ) -> None:
+        """Configure the scoring signals.
+
+        Args:
+            baseline_ranks: Per-task-type baseline ranks; missing task types
+                fall back to the defaults.
+            length_bumps: ``(word_threshold, score_bump)`` pairs applied in
+                descending threshold order (largest applicable threshold
+                wins).
+            high_signal_keywords: Keyword literals matched on word
+                boundaries.
+            keyword_double_hit_threshold: Distinct hits needed for a second
+                keyword bump.
+        """
         merged_baselines = dict(BASELINE_RANKS)
         if baseline_ranks:
             merged_baselines.update(baseline_ranks)
@@ -146,8 +149,7 @@ class HeuristicScorer:
         keywords = high_signal_keywords if high_signal_keywords else HIGH_SIGNAL_KEYWORDS
         self._keywords = tuple(keywords)
         self._patterns = tuple(
-            re.compile(rf"\b{re.escape(keyword)}\b", re.IGNORECASE)
-            for keyword in self._keywords
+            re.compile(rf"\b{re.escape(keyword)}\b", re.IGNORECASE) for keyword in self._keywords
         )
         self._double_hit_threshold = keyword_double_hit_threshold
 
@@ -197,9 +199,7 @@ class HeuristicScorer:
             double = len(hits) >= self._double_hit_threshold
             bump = 2 if double else 1
             score += bump
-            confidence += (
-                _CONFIDENCE_KEYWORD_DOUBLE_STEP if double else _CONFIDENCE_KEYWORD_STEP
-            )
+            confidence += _CONFIDENCE_KEYWORD_DOUBLE_STEP if double else _CONFIDENCE_KEYWORD_STEP
             shown = ", ".join(hits[:4])
             events.append(f"+{bump} keywords ({shown})")
 

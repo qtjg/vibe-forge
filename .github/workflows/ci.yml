@@ -27,8 +27,33 @@ jobs:
       - name: Lint with ruff
         run: ruff check .
 
-      - name: Format check with black
-        run: black --check .
+      - name: Format check with ruff
+        run: ruff format --check .
 
       - name: Test with pytest
         run: pytest
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tooling
+        run: pip install build twine
+
+      - name: Build sdist and wheel
+        run: python -m build
+
+      - name: Check metadata with twine
+        run: twine check dist/*
+
+      - name: Smoke-test the wheel install
+        run: |
+          pip install dist/*.whl
+          vibeforge --version
+          vibeforge route "def add(a, b):" --json | python -c "import json,sys; json.load(sys.stdin)"

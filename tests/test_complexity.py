@@ -214,9 +214,7 @@ def test_confidence_rises_with_each_signal(scorer: HeuristicScorer) -> None:
     plain = make_task(prompt="complete this line")
     assert scorer.confidence(plain) == 0.5
 
-    racy = make_task(
-        task_type=TaskType.DEBUG, prompt="race condition in the worker pool"
-    )
+    racy = make_task(task_type=TaskType.DEBUG, prompt="race condition in the worker pool")
     assert scorer.confidence(racy) == pytest.approx(0.65)
 
     long_and_racy = make_task(
@@ -240,9 +238,7 @@ def test_confidence_is_capped(scorer: HeuristicScorer) -> None:
 
 
 def test_confidence_is_deterministic(scorer: HeuristicScorer) -> None:
-    task = make_task(
-        task_type=TaskType.DEBUG, prompt="race condition in the worker pool"
-    )
+    task = make_task(task_type=TaskType.DEBUG, prompt="race condition in the worker pool")
     assert scorer.confidence(task) == scorer.confidence(task)
 
 

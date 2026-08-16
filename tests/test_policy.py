@@ -28,9 +28,7 @@ class FakeRegistry:
     def pick_for(self, complexity: Complexity) -> ModelTier:
         return self._model
 
-    def pick(
-        self, complexity: Complexity, available_tags: set[str] | None = None
-    ) -> ModelPick:
+    def pick(self, complexity: Complexity, available_tags: set[str] | None = None) -> ModelPick:
         return ModelPick(model=self._model)
 
 
@@ -228,5 +226,3 @@ def _make_racy_task() -> Task:
         type=TaskType.DEBUG,
         prompt="Fix the race condition in the async worker pool",
     )
-    assert payload["complexity"] == "medium"
-    assert payload["model"] == "test-tier"

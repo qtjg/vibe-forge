@@ -286,9 +286,7 @@ def test_backoff_is_capped(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(executor_module.time, "sleep", sleeps.append)
 
     # max_retries=4, cap=2.0: backoffs 0.5, 1.0, 2.0, 2.0
-    executor = OllamaExecutor(
-        base_url="http://ollama.test:11434", max_retries=4, backoff_cap=2.0
-    )
+    executor = OllamaExecutor(base_url="http://ollama.test:11434", max_retries=4, backoff_cap=2.0)
     executor.execute("m:latest", "p")
 
     assert sleeps == [0.5, 1.0, 2.0, 2.0]

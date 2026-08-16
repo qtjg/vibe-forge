@@ -154,9 +154,9 @@ vibeforge/
 
 ```bash
 pip install -e ".[dev]"
-pytest            # 80+ tests, no Ollama required (HTTP is mocked)
-ruff check .
-black --check .
+pytest            # 134 tests, no Ollama required (HTTP is mocked)
+ruff check .      # lint
+ruff format --check .  # formatting
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how to add task types, scorers, and tasks.

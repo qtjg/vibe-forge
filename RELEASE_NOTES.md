@@ -12,7 +12,7 @@ no cloud API calls.
   per-model stats
 - **Benchmark suite**: 36 tasks across 6 task types, results committed as
   `benchmark_results.csv`
-- **80 tests**, ruff + black clean, CI on Python 3.11–3.13
+- **80 tests**, ruff clean, CI on Python 3.11–3.13
 
 ### Verified against real Ollama
 - Trivial task → tiny-fast tier (qwen2.5:0.5b, ~22.6 tok/s)

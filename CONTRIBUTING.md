@@ -14,7 +14,7 @@ pip install -e ".[dev]"
 
 pytest            # run the suite (no Ollama needed — HTTP is mocked)
 ruff check .      # lint
-black --check .   # format check
+ruff format --check .   # format check
 ```
 
 ## Adding a new TaskType
@@ -80,8 +80,8 @@ ones** — the page and the CLI both rely on the current shapes.
 
 - Every module gets a test module in `tests/`.
 - `test_executor.py` mocks `requests.post` — never require a live Ollama.
-- Run `pytest` locally before pushing; CI runs ruff + black + pytest on
-  Python 3.11–3.13.
+- Run `pytest` locally before pushing; CI runs ruff + pytest + a package
+  build check on Python 3.11–3.13.
 
 ## Commit messages
 
@@ -99,5 +99,5 @@ docs: document dashboard API contract
 - [ ] Tests added for new/changed behavior
 - [ ] `pytest` passes
 - [ ] `ruff check .` clean
-- [ ] `black --check .` clean
+- [ ] `ruff format --check .` clean
 - [ ] Docs updated (README/CONTRIBUTING) where behavior changed

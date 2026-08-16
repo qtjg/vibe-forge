@@ -12,10 +12,10 @@ description: Use when adding routing logic, task types, scorers, or benchmark ca
   optional `OllamaExecutor` (async execution).
 - Types live in `vibeforge/types.py`; each router layer is one file under
   `vibeforge/router/`.
-- Everything is `dataclass`/`enum` based, fully annotated, ruff+black clean
+- Everything is `dataclass`/`enum` based, fully annotated, ruff clean
   (line length 100, google docstrings).
 - Tests never need a live Ollama: `test_executor.py` mocks `requests.post`,
-  others use fakes. Run `pytest`, `ruff check .`, `black --check .` before
+  others use fakes. Run `pytest`, `ruff check .`, `ruff format --check .` before
   any commit.
 
 ## Adding a new TaskType

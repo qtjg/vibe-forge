@@ -245,7 +245,7 @@ def _parse_tier(entry: dict[str, Any], index: int) -> ModelTier:
     except ValueError as exc:
         valid = ", ".join(tier.value for tier in Complexity)
         raise ConfigError(
-            f"tier {name!r} has invalid complexity_ceiling {raw_ceiling!r} " f"(valid: {valid})"
+            f"tier {name!r} has invalid complexity_ceiling {raw_ceiling!r} (valid: {valid})"
         ) from exc
 
     try:

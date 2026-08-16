@@ -135,10 +135,7 @@ class OllamaExecutor:
                 elapsed_ms = (time.perf_counter() - started) * 1000.0
 
             if not response.ok:
-                if (
-                    response.status_code in _RETRYABLE_HTTP_STATUS
-                    and attempt < self._max_retries
-                ):
+                if response.status_code in _RETRYABLE_HTTP_STATUS and attempt < self._max_retries:
                     continue
                 return self._failure(
                     model_tag,

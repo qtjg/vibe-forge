@@ -105,8 +105,7 @@ TASKS: tuple[BenchmarkTask, ...] = (
     _t(
         "explain-03",
         E,
-        "explain what this decorator does and when it would be useful:\n"
-        "@retry_on_failure(times=3)",
+        "explain what this decorator does and when it would be useful:\n@retry_on_failure(times=3)",
         note="middleweight concept",
     ),
     _t(

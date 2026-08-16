@@ -12,7 +12,7 @@ an :class:`OllamaStatus` describing reachability instead.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import requests
@@ -42,7 +42,7 @@ class OllamaStatus:
     pulled_tags: frozenset[str] = frozenset()
     server_version: str | None = None
     error: str | None = None
-    checked_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    checked_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     @property
     def available(self) -> bool:
@@ -77,10 +77,8 @@ def probe_ollama(
     try:
         response = requests.get(url, timeout=timeout)
     except requests.Timeout:
-        return OllamaStatus(
-            reachable=False, error=f"probe timed out after {timeout}s"
-        )
-    except requests.ConnectionError as exc:
+        return OllamaStatus(reachable=False, error=f"probe timed out after {timeout}s")
+    except requests.ConnectionError:
         return OllamaStatus(
             reachable=False,
             error=f"cannot reach Ollama at {base_url} (is the server running?)",
@@ -89,16 +87,12 @@ def probe_ollama(
         return OllamaStatus(reachable=False, error=f"Ollama probe failed: {exc}")
 
     if not response.ok:
-        return OllamaStatus(
-            reachable=False, error=f"Ollama error (HTTP {response.status_code})"
-        )
+        return OllamaStatus(reachable=False, error=f"Ollama error (HTTP {response.status_code})")
 
     try:
         body: dict[str, Any] = response.json()
     except ValueError:
-        return OllamaStatus(
-            reachable=False, error="Ollama returned a non-JSON response"
-        )
+        return OllamaStatus(reachable=False, error="Ollama returned a non-JSON response")
 
     tags = frozenset(
         str(model["name"])

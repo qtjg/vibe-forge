@@ -54,9 +54,7 @@ class PolicyRouter:
         self._history: list[RoutingDecision] = history if history is not None else []
         self._history_store = history_store
 
-    def route(
-        self, task: Task, available_tags: set[str] | None = None
-    ) -> RoutingDecision:
+    def route(self, task: Task, available_tags: set[str] | None = None) -> RoutingDecision:
         """Score ``task``, pick a model, record, and return the decision.
 
         Args:
