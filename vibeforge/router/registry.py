@@ -237,4 +237,3 @@ class ModelRegistry:
                 f"using most capable configured model {self._models[-1].name}"
             ),
         )
-

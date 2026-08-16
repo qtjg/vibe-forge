@@ -1,0 +1,317 @@
+# Held-out evaluation set for scorer research (v1).
+#
+# Ground-truth complexity was assigned by the project author (Mayank
+# Bhaskar) using this calibration, stated here so it can be audited:
+#
+#   trivial -- a single, mechanical edit; one line; no reasoning needed
+#   low     -- one small cohesive unit; some thought, no cross-module state
+#   medium  -- multi-step work: state, edge cases, or design within one concern
+#   high    -- concurrency, security, distribution, or cross-module design
+#
+# These prompts are deliberately distinct from the 36-task benchmark
+# suite. Results are reproducible: anyone can rerun `vibeforge eval`
+# against this file and compare CSV outputs.
+#
+# Task types are limited to the six built-in routing types for now;
+# when task types become pluggable (v0.3), the set can grow custom ones.
+
+evaluator: Mayank Bhaskar (project author)
+version: 1
+tier_calibration:
+  trivial: single mechanical edit, one line, no reasoning
+  low: one small cohesive unit, modest reasoning
+  medium: multi-step, state/edge cases, or in-module design
+  high: concurrency, security, distribution, or cross-module design
+
+tasks:
+  # -------------------------------------------------------------- trivial
+  - id: eval-trivial-01
+    task_type: autocomplete
+    prompt: "complete this function body: def add(a, b): pass"
+    ground_truth: trivial
+    rationale: single return statement; no reasoning required
+
+  - id: eval-trivial-02
+    task_type: refactor
+    prompt: "rewrite this list comprehension as a plain for loop: xs = [i**2 for i in range(10)]"
+    ground_truth: trivial
+    rationale: mechanical translation, fixed shape
+
+  - id: eval-trivial-03
+    task_type: explain
+    prompt: "what does this line compute? x = [i**2 for i in range(10)]"
+    ground_truth: trivial
+    rationale: direct enumeration, no analysis
+
+  - id: eval-trivial-04
+    task_type: refactor
+    prompt: "rename the local variable temp to total inside this 6-line function"
+    ground_truth: trivial
+    rationale: a rename, fully specified
+
+  - id: eval-trivial-05
+    task_type: autocomplete
+    prompt: "wrap this block of code in try/except ValueError and re-raise after logging"
+    ground_truth: trivial
+    rationale: boilerplate, no design decisions
+
+  - id: eval-trivial-06
+    task_type: generate
+    prompt: "add a one-paragraph docstring to this 5-line function"
+    ground_truth: trivial
+    rationale: docstring of fixed small shape
+
+  - id: eval-trivial-07
+    task_type: autocomplete
+    prompt: "write a one-line function is_even(n) returning n % 2 == 0"
+    ground_truth: trivial
+    rationale: one expression, fully specified
+
+  - id: eval-trivial-08
+    task_type: explain
+    prompt: "what is the type of df['col'].iloc[0] in pandas after a groupby?"
+    ground_truth: trivial
+    rationale: fact recall, no chain of reasoning
+
+  - id: eval-trivial-09
+    task_type: autocomplete
+    prompt: "sum the integers in this list using sum()"
+    ground_truth: trivial
+    rationale: one builtin call
+
+  - id: eval-trivial-10
+    task_type: generate
+    prompt: "format this datetime to the string YYYY-MM-DD in Python"
+    ground_truth: trivial
+    rationale: single format-code choice
+
+  - id: eval-trivial-11
+    task_type: refactor
+    prompt: "remove the unused import os from this file and any dead assignment it feeds"
+    ground_truth: trivial
+    rationale: mechanical deletion
+
+  - id: eval-trivial-12
+    task_type: refactor
+    prompt: "change this print statement to logger.debug with the same message"
+    ground_truth: trivial
+    rationale: one-line substitution
+
+  # ------------------------------------------------------------------ low
+  - id: eval-low-01
+    task_type: refactor
+    prompt: "rewrite this function to yield results one at a time instead of building a list"
+    ground_truth: low
+    rationale: one control-flow shape change in a single function
+
+  - id: eval-low-02
+    task_type: debug
+    prompt: "this while loop skips the last element; explain why and fix the off-by-one"
+    ground_truth: low
+    rationale: single localized bug, needs a moment of thought
+
+  - id: eval-low-03
+    task_type: generate
+    prompt: "write a small function that validates an email address with one regex"
+    ground_truth: low
+    rationale: one regex design choice, no cross-cutting concerns
+
+  - id: eval-low-04
+    task_type: refactor
+    prompt: "convert this dict-of-lists into a list-of-dicts while preserving iteration order"
+    ground_truth: low
+    rationale: one structural transformation
+
+  - id: eval-low-05
+    task_type: generate
+    prompt: "add offset/limit pagination to this function that queries a table"
+    ground_truth: low
+    rationale: two parameters and an ORDER BY; local to one function
+
+  - id: eval-low-06
+    task_type: debug
+    prompt: "make this function return an empty result instead of crashing on None input"
+    ground_truth: low
+    rationale: one guard clause, modest judgment
+
+  - id: eval-low-07
+    task_type: autocomplete
+    prompt: "sort this list of dicts by the nested key 'items.count' descending"
+    ground_truth: low
+    rationale: picks a lambda/key chain; slightly harder than trivial
+
+  - id: eval-low-08
+    task_type: generate
+    prompt: "write two or three pytest cases for this function, including the boundary case"
+    ground_truth: low
+    rationale: small test design, one boundary to remember
+
+  - id: eval-low-09
+    task_type: debug
+    prompt: "this parser hangs when the input file is empty; fix the empty-input path"
+    ground_truth: low
+    rationale: one missing guard in a small function
+
+  - id: eval-low-10
+    task_type: refactor
+    prompt: "convert this recursive directory walk to an explicit stack version"
+    ground_truth: low
+    rationale: same shape, different mechanics, bounded size
+
+  - id: eval-low-11
+    task_type: explain
+    prompt: "explain why 'is' and '==' differ for small ints and strings, with an example"
+    ground_truth: low
+    rationale: explains one subtlety; conceptual but small
+
+  - id: eval-low-12
+    task_type: refactor
+    prompt: "extract the duplicated CSV-parsing block into a helper and call it from both places"
+    ground_truth: low
+    rationale: one extraction, two call sites
+
+  # ---------------------------------------------------------------- medium
+  - id: eval-medium-01
+    task_type: generate
+    prompt: "implement a retry decorator with exponential backoff and jitter that never swallows the last exception"
+    ground_truth: medium
+    rationale: multiple interacting decisions (timing, re-raise, signature)
+
+  - id: eval-medium-02
+    task_type: refactor
+    prompt: "refactor this class into a factory pattern without changing the existing callers"
+    ground_truth: medium
+    rationale: design pattern applied across several methods
+
+  - id: eval-medium-03
+    task_type: debug
+    prompt: "this API endpoint checks a flag then uses it, but two requests can both pass the check; fix the TOCTOU race"
+    ground_truth: medium
+    rationale: a real race, needs an atomicity fix, state analysis
+
+  - id: eval-medium-04
+    task_type: debug
+    prompt: "profile this function and identify the hotspot; propose a change that keeps semantics identical"
+    ground_truth: medium
+    rationale: measurement + tradeoff, several candidate causes
+
+  - id: eval-medium-05
+    task_type: generate
+    prompt: "write a thread-safe LRU cache with a size limit, using only the standard library"
+    ground_truth: medium
+    rationale: locking + eviction policy together
+
+  - id: eval-medium-06
+    task_type: refactor
+    prompt: "migrate this module from blocking requests calls to async httpx without leaking resources"
+    ground_truth: medium
+    rationale: async conversion touches error paths and lifecycle
+
+  - id: eval-medium-07
+    task_type: generate
+    prompt: "implement merge sort that allocates as little extra memory as achievable"
+    ground_truth: medium
+    rationale: algorithm plus a resource constraint
+
+  - id: eval-medium-08
+    task_type: debug
+    prompt: "this batching loop drops the whole batch when one item raises; make it skip only the failing item"
+    ground_truth: medium
+    rationale: error-handling design in a loop with state
+
+  - id: eval-medium-09
+    task_type: explain
+    prompt: "write a migration plan to add a column to this production SQLite table without downtime"
+    ground_truth: medium
+    rationale: multiple steps and a stated constraint
+
+  - id: eval-medium-10
+    task_type: explain
+    prompt: "explain why this lock is not sufficient to protect the counter and propose a correct fix"
+    ground_truth: medium
+    rationale: needs to trace the interleaving that breaks it
+
+  - id: eval-medium-11
+    task_type: refactor
+    prompt: "split this 200-line function into a pipeline of named steps with typed outputs"
+    ground_truth: medium
+    rationale: decomposition judgment over a large surface
+
+  - id: eval-medium-12
+    task_type: generate
+    prompt: "implement a simple on-disk key-value store with WAL semantics and crash recovery"
+    ground_truth: medium
+    rationale: persistence protocol, ordering, recovery logic
+
+  # ------------------------------------------------------------------- high
+  - id: eval-high-01
+    task_type: debug
+    prompt: "find the deadlock in this multi-threaded job scheduler and fix it without removing parallelism"
+    ground_truth: high
+    rationale: concurrency reasoning over interdependent locks
+
+  - id: eval-high-02
+    task_type: generate
+    prompt: "design a distributed rate limiter that stays consistent across nodes with quorum writes"
+    ground_truth: high
+    rationale: distributed consistency plus a protocol
+
+  - id: eval-high-03
+    task_type: review
+    prompt: "this auth flow writes tokens to application logs; harden token handling end to end"
+    ground_truth: high
+    rationale: security review across several components
+
+  - id: eval-high-04
+    task_type: generate
+    prompt: "implement a lock-free queue or explain rigorously why the suggested one is not correct"
+    ground_truth: high
+    rationale: memory-model reasoning on a shared structure
+
+  - id: eval-high-05
+    task_type: debug
+    prompt: "this distributed snapshot protocol loses writes on leader change; analyze the failure and fix it"
+    ground_truth: high
+    rationale: multi-node protocol reasoning
+
+  - id: eval-high-06
+    task_type: review
+    prompt: "harden this key handling code against side-channel timing leaks"
+    ground_truth: high
+    rationale: advanced security domain knowledge
+
+  - id: eval-high-07
+    task_type: debug
+    prompt: "this consensus implementation can elect two leaders under partition; find the split-brain window"
+    ground_truth: high
+    rationale: distributed systems failure analysis
+
+  - id: eval-high-08
+    task_type: generate
+    prompt: "design a sharding strategy with live rebalancing for a 10M-row table served by 4 nodes"
+    ground_truth: high
+    rationale: large-scale design with multiple interacting constraints
+
+  - id: eval-high-09
+    task_type: explain
+    prompt: "explain the memory-model issue in this cache shared by concurrent producers and consumers"
+    ground_truth: high
+    rationale: subtle shared-state reasoning
+
+  - id: eval-high-10
+    task_type: refactor
+    prompt: "rearchitect this component's messaging layer so delivery is at-least-once across producer restarts"
+    ground_truth: high
+    rationale: distributed semantics, not a local edit
+
+  - id: eval-high-11
+    task_type: debug
+    prompt: "implement or refactor the priority-inversion fix in this realtime scheduler"
+    ground_truth: high
+    rationale: realtime scheduling domain knowledge
+
+  - id: eval-high-12
+    task_type: explain
+    prompt: "analyze this replication protocol's durability behavior under partition and power loss"
+    ground_truth: high
+    rationale: CAP-style analysis across failure modes

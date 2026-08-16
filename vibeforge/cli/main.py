@@ -20,7 +20,7 @@ import typer
 from vibeforge import __version__
 from vibeforge.benchmark.runner import BenchmarkInterrupted, BenchmarkRunner
 from vibeforge.benchmark.tasks import all_tasks, tasks_for
-from vibeforge.router.complexity import HeuristicScorer
+from vibeforge.router.complexity import HeuristicScorer, Scorer
 from vibeforge.router.executor import DEFAULT_OLLAMA_URL, OllamaExecutor
 from vibeforge.router.policy import PolicyRouter
 from vibeforge.router.registry import ConfigError, ModelRegistry, find_models_file
@@ -148,8 +148,7 @@ def route(
             typer.echo(f"error: {result.error}", err=True)
             if result.status_code == 404:
                 typer.echo(
-                    f"hint: model '{result.model}' is not pulled — run: "
-                    f"ollama pull {result.model}",
+                    f"hint: model '{result.model}' is not pulled — run: ollama pull {result.model}",
                     err=True,
                 )
             elif result.error_kind == "connection":
@@ -237,6 +236,80 @@ def run(
         raise typer.Exit(code=130) from exc
     path = runner.write_csv(rows, output)
     typer.echo(runner.summarize(rows))
+    typer.echo(f"\nresults written to {path}")
+
+
+@app.command("eval")
+def eval_command(
+    scorer_names: str = typer.Option(
+        "heuristic,embedding",
+        "--scorer",
+        help="Comma-separated scorers to evaluate: 'heuristic', 'embedding'.",
+    ),
+    output: Path = typer.Option(
+        Path("results/eval-results.csv"),
+        "--output",
+        help="Where to write the per-task CSV.",
+    ),
+    host: str = typer.Option(
+        DEFAULT_OLLAMA_URL,
+        "--host",
+        show_default=True,
+        help="Base URL of the local Ollama server (for the embedding scorer).",
+    ),
+    embedding_model: str = typer.Option(
+        "nomic-embed-text",
+        "--embedding-model",
+        help="Ollama embedding model used by the embedding scorer.",
+    ),
+) -> None:
+    """Evaluate scorers against the committed human-labeled test set.
+
+    Scores every prompt in ``vibeforge/data/eval-set.yaml`` with each
+    given scorer, then reports accuracy, per-tier precision/recall/F1,
+    the confusion matrix, and latency overhead. The CSV written to
+    ``--output`` is the reproducible evidence: anyone who clones the
+    repo can rerun this and diff the file.
+    """
+    from vibeforge.eval.dataset import EvalSetError, load_eval_set
+    from vibeforge.eval.runner import Evaluator
+    from vibeforge.router.complexity import HeuristicScorer
+    from vibeforge.router.embedding import EmbeddingScorer
+
+    names = [name.strip() for name in scorer_names.split(",") if name.strip()]
+    if not names:
+        typer.echo("error: --scorer needs at least one scorer name", err=True)
+        raise typer.Exit(code=1)
+
+    known = {"heuristic", "embedding"}
+    unknown = [name for name in names if name not in known]
+    if unknown:
+        typer.echo(
+            f"error: unknown scorer(s) {', '.join(unknown)} (known: {', '.join(sorted(known))})",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    try:
+        tasks = load_eval_set()
+    except EvalSetError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+
+    scorers: dict[str, Scorer] = {}
+    if "heuristic" in names:
+        scorers["heuristic"] = HeuristicScorer()
+    if "embedding" in names:
+        scorers["embedding"] = EmbeddingScorer(client_host=host, model=embedding_model)
+
+    typer.echo(f"eval set:  {len(tasks)} labeled tasks")
+    typer.echo(f"scorers:   {', '.join(scorers)}")
+    typer.echo("")
+
+    evaluator = Evaluator(scorers)
+    reports = evaluator.run(tasks)
+    path = evaluator.write_csv(reports, output)
+    typer.echo(evaluator.summarize(reports))
     typer.echo(f"\nresults written to {path}")
 
 
