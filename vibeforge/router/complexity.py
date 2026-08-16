@@ -113,9 +113,7 @@ class HeuristicScorer:
 
         hits = [
             keyword
-            for keyword, pattern in zip(
-                HIGH_SIGNAL_KEYWORDS, _KEYWORD_PATTERNS, strict=True
-            )
+            for keyword, pattern in zip(HIGH_SIGNAL_KEYWORDS, _KEYWORD_PATTERNS, strict=True)
             if pattern.search(task.prompt) or pattern.search(task.context)
         ]
         if hits:
