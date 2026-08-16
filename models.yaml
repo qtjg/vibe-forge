@@ -1,0 +1,31 @@
+# vibe-forge model tier configuration
+#
+# editable by the user: add tiers, re-point ollama_tag, adjust ceilings, RAM.
+# The router NEVER hardcodes tiers -- everything reads from this file
+# (or $VIBEFORGE_MODELS).
+#
+#   name:               short readable tier name (used in dashboards/reports)
+#   ollama_tag:         the tag Ollama knows this model by
+#   complexity_ceiling: hardest tier this model should serve
+#                       (trivial < low < medium < high)
+#   approx_ram_gb:      approximate RAM used; "cheapest" = lowest RAM
+#   notes:              free text, shown in reports, never parsed
+
+models:
+  - name: tiny-fast
+    ollama_tag: qwen2.5:0.5b
+    complexity_ceiling: trivial
+    approx_ram_gb: 0.6
+    notes: "Blazing fast; ideal for autocomplete and one-liners"
+
+  - name: balanced
+    ollama_tag: llama3.1:latest
+    complexity_ceiling: medium
+    approx_ram_gb: 4.9
+    notes: "The recommended default; handles most everyday tasks"
+
+  - name: heavy
+    ollama_tag: qwen2.5-coder:14b
+    complexity_ceiling: high
+    approx_ram_gb: 9.0
+    notes: "Strongest tier; architecture, debugging, and reviews"

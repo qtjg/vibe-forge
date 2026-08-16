@@ -1,0 +1,25 @@
+# Default model tier configuration, bundled with the package.
+#
+# The CLI looks for ./models.yaml in the working directory first; when that
+# is absent (e.g. after a plain `pip install`), this bundled copy is used.
+# Keep this file in sync with the user-facing models.yaml in the repo root:
+# the repo root copy is the canonical, user-editable documentation source.
+
+models:
+  - name: tiny-fast
+    ollama_tag: qwen2.5:0.5b
+    complexity_ceiling: trivial
+    approx_ram_gb: 0.6
+    notes: "Blazing fast; ideal for autocomplete and one-liners"
+
+  - name: balanced
+    ollama_tag: llama3.1:latest
+    complexity_ceiling: medium
+    approx_ram_gb: 4.9
+    notes: "The recommended default; handles most everyday tasks"
+
+  - name: heavy
+    ollama_tag: qwen2.5-coder:14b
+    complexity_ceiling: high
+    approx_ram_gb: 9.0
+    notes: "Strongest tier; architecture, debugging, and reviews"
