@@ -2,6 +2,9 @@
 
 Results are written to CSV in a flat, pandas-friendly shape -- one row per
 (model, task) run -- and printed as a per-model summary table.
+
+The CSV is flushed incrementally (once per model) so a Ctrl+C mid-run still
+leaves the runs completed so far on disk for the research paper's raw data.
 """
 
 from __future__ import annotations
@@ -16,7 +19,7 @@ from vibeforge.benchmark.tasks import BenchmarkTask
 from vibeforge.router.registry import ModelRegistry
 from vibeforge.types import ExecutionResult, ModelTier
 
-__all__ = ["BenchmarkRow", "BenchmarkRunner"]
+__all__ = ["BenchmarkRow", "BenchmarkRunner", "BenchmarkInterrupted"]
 
 #: CSV columns; keep this stable across releases so results stay comparable.
 CSV_COLUMNS: tuple[str, ...] = (
@@ -38,6 +41,20 @@ class RunnerExecutor(Protocol):
     def execute(
         self, model_tag: str, prompt: str, options: dict[str, object] | None = None
     ) -> ExecutionResult: ...
+
+
+class BenchmarkInterrupted(Exception):
+    """Raised when a benchmark run is stopped mid-way (Ctrl+C).
+
+    The runs completed up to that point are already flushed to the CSV.
+    """
+
+    def __init__(self, completed: int, total: int, csv_path: Path) -> None:
+        """Record how far the run got before being interrupted."""
+        super().__init__(f"benchmark interrupted after {completed}/{total} runs")
+        self.completed = completed
+        self.total = total
+        self.csv_path = csv_path
 
 
 class BenchmarkRow:
@@ -79,9 +96,9 @@ class BenchmarkRunner:
         >>> runner = BenchmarkRunner(
         ...     registry=ModelRegistry.load_default(),
         ...     executor=OllamaExecutor(),
+        ...     tasks=all_tasks(),
         ... )
-        >>> rows = runner.run()
-        >>> runner.write_csv(rows, Path("benchmark_results.csv"))
+        >>> rows = runner.run(output_path="benchmark_results.csv")
     """
 
     def __init__(
@@ -101,35 +118,53 @@ class BenchmarkRunner:
         self._executor = executor
         self._tasks = tuple(tasks)
 
-    def run(self, silent: bool = False) -> list[BenchmarkRow]:
+    def run(
+        self,
+        output_path: str | Path | None = None,
+        silent: bool = False,
+    ) -> list[BenchmarkRow]:
         """Run every task against every model, in a model-major loop.
 
         Args:
+            output_path: When given, the rows completed so far are flushed to
+                this CSV after every model, and on interruption.
             silent: When true, don't print per-task progress lines.
 
         Returns:
             One :class:`BenchmarkRow` per (model, task) pair, including rows
             where the run failed (``error`` set).
+
+        Raises:
+            BenchmarkInterrupted: On Ctrl+C; completed rows are already
+                flushed to ``output_path`` when it was provided.
         """
         rows: list[BenchmarkRow] = []
+        total = len(self._registry.models) * len(self._tasks)
         start = time.perf_counter()
-        for model in self._registry.models:
-            for task in self._tasks:
-                if not silent:
-                    print(f"[{model.name}] {task.id} ... ", end="", flush=True)
-                result = self._executor.execute(
-                    model.ollama_tag,
-                    task.prompt,
-                    options={"temperature": 0.0, "num_predict": 2048},
-                )
-                rows.append(BenchmarkRow(model=model, task=task, result=result))
-                if not silent:
-                    status = "ok" if result.ok else "ERROR"
-                    print(status)
-        if not silent:
-            elapsed = time.perf_counter() - start
-            print(f"\ndone in {elapsed:.1f}s across {len(self._registry.models)} model(s)")
-        return rows
+        try:
+            for model in self._registry.models:
+                for task in self._tasks:
+                    if not silent:
+                        print(f"[{model.name}] {task.id} ... ", end="", flush=True)
+                    result = self._executor.execute(
+                        model.ollama_tag,
+                        task.prompt,
+                        options={"temperature": 0.0, "num_predict": 2048},
+                    )
+                    rows.append(BenchmarkRow(model=model, task=task, result=result))
+                    if not silent:
+                        print("ok" if result.ok else "ERROR", flush=True)
+                if output_path is not None:
+                    self.write_csv(rows, output_path)
+            if not silent:
+                elapsed = time.perf_counter() - start
+                print(f"\ndone in {elapsed:.1f}s across {len(self._registry.models)} model(s)")
+            return rows
+        except KeyboardInterrupt as exc:
+            path = Path(output_path) if output_path is not None else Path()
+            if rows and output_path is not None:
+                self.write_csv(rows, path)
+            raise BenchmarkInterrupted(completed=len(rows), total=total, csv_path=path) from exc
 
     def write_csv(self, rows: Sequence[BenchmarkRow], path: str | Path) -> Path:
         """Write the benchmark rows to a pandas-friendly CSV.
@@ -154,7 +189,8 @@ class BenchmarkRunner:
         by_model: dict[str, dict[str, float | int]] = {}
         for row in rows:
             stats = by_model.setdefault(
-                row.model_name, {"runs": 0, "errors": 0, "latency_sum": 0.0, "tokens": 0}
+                row.model_name,
+                {"runs": 0, "errors": 0, "latency_sum": 0.0, "tokens": 0},
             )
             stats["runs"] += 1
             if row.error:

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from vibeforge.benchmark.runner import BenchmarkRunner
+from vibeforge.benchmark.runner import BenchmarkInterrupted, BenchmarkRunner
 from vibeforge.benchmark.tasks import all_tasks, tasks_for
 from vibeforge.router.registry import ModelRegistry
 from vibeforge.types import ExecutionResult, TaskType
@@ -137,3 +137,38 @@ def test_executor_never_receives_benchmark_metadata(
     for model_tag, prompt in executor.calls:
         assert model_tag in ("tiny:latest", "big:latest")
         assert prompt.strip()  # only the raw prompt is sent
+
+
+def test_interrupted_run_raises_with_partial_rows(registry: ModelRegistry, tmp_path: Path) -> None:
+    class InterruptingExecutor(FakeExecutor):
+        """Succeeds twice, then fails the whole run with a keyboard interrupt."""
+
+        def __init__(self) -> None:
+            super().__init__()
+            self.calls = []
+            self._interrupt_after = 2
+
+        def execute(
+            self, model_tag: str, prompt: str, options: dict[str, object] | None = None
+        ) -> ExecutionResult:
+            self.calls.append((model_tag, prompt))
+            if len(self.calls) > self._interrupt_after:
+                raise KeyboardInterrupt
+            return ExecutionResult(
+                model=model_tag,
+                prompt=prompt,
+                latency_ms=10.0,
+                eval_count=5,
+                output="partial",
+            )
+
+    out = tmp_path / "partial.csv"
+    runner = BenchmarkRunner(registry=registry, executor=InterruptingExecutor(), tasks=all_tasks())
+    with pytest.raises(BenchmarkInterrupted) as excinfo:
+        runner.run(output_path=out, silent=True)
+
+    assert excinfo.value.completed == 2
+    assert excinfo.value.csv_path == out
+    assert excinfo.value.total == 2 * len(all_tasks())
+    with open(out, encoding="utf-8", newline="") as handle:
+        assert len(list(csv.DictReader(handle))) == 2

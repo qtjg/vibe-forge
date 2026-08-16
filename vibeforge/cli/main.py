@@ -18,7 +18,7 @@ import requests
 import typer
 
 from vibeforge import __version__
-from vibeforge.benchmark.runner import BenchmarkRunner
+from vibeforge.benchmark.runner import BenchmarkInterrupted, BenchmarkRunner
 from vibeforge.benchmark.tasks import all_tasks, tasks_for
 from vibeforge.router.complexity import HeuristicScorer
 from vibeforge.router.executor import DEFAULT_OLLAMA_URL, OllamaExecutor
@@ -191,7 +191,12 @@ def run(
     typer.echo("")
 
     runner = BenchmarkRunner(registry=registry, executor=OllamaExecutor(base_url=host), tasks=tasks)
-    rows = runner.run()
+    try:
+        rows = runner.run(output_path=output)
+    except BenchmarkInterrupted as exc:
+        typer.echo(f"\ninterrupted after {exc.completed}/{exc.total} runs", err=True)
+        typer.echo(f"partial results saved to {exc.csv_path}", err=True)
+        raise typer.Exit(code=130) from exc
     path = runner.write_csv(rows, output)
     typer.echo(runner.summarize(rows))
     typer.echo(f"\nresults written to {path}")
