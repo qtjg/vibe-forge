@@ -10,14 +10,17 @@ cheap, explainable signals that need no ML dependencies:
    flag genuinely hard problems.
 
 Every score returns a plain-English reason string so routing stays
-explainable end to end.
+explainable end to end, plus a deterministic confidence estimate based on
+how much evidence the signals supplied.
+
+All scoring knobs (baselines, keywords, length thresholds) can be overridden
+per-instance, which lets projects tune routing without forking the code.
 """
 
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
-from typing import Protocol
+from collections.abc import Mapping, Sequence
 
 from vibeforge.types import Complexity, Task, TaskType
 
@@ -72,17 +75,31 @@ LENGTH_BUMPS: tuple[tuple[int, int], ...] = ((200, 1), (800, 2))
 #: More than this many *distinct* keyword hits adds a second bump.
 KEYWORD_DOUBLE_HIT_THRESHOLD = 3
 
-_KEYWORD_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
-    re.compile(rf"\b{re.escape(keyword)}\b", re.IGNORECASE) for keyword in HIGH_SIGNAL_KEYWORDS
-)
+#: Confidence floor when only the baseline applies; each extra signal adds
+#: toward the cap. 0..1, deterministic.
+_CONFIDENCE_BASE = 0.5
+_CONFIDENCE_CAP = 0.9
+_CONFIDENCE_LENGTH_STEP = 0.15
+_CONFIDENCE_KEYWORD_STEP = 0.15
+_CONFIDENCE_KEYWORD_DOUBLE_STEP = 0.2
+_CONFIDENCE_CONTEXT_STEP = 0.05
+
+_PROTOCOL = """Choose a score() method returning (Complexity, str)."""
 
 
-class Scorer(Protocol):
+class Scorer:
     """Anything that turns a :class:`Task` into a complexity tier."""
 
     def score(self, task: Task) -> tuple[Complexity, str]:
         """Return the complexity tier and a human-readable justification."""
-        ...
+        raise NotImplementedError(_PROTOCOL)
+
+    def confidence(self, task: Task) -> float | None:
+        """Optional 0..1 estimate of how reliable ``score()`` is.
+
+        ``None`` means the scorer does not produce a confidence estimate.
+        """
+        return None
 
 
 class HeuristicScorer:
@@ -90,7 +107,49 @@ class HeuristicScorer:
 
     Deterministic and dependency-free, which keeps routing explainable,
     testable, and fast (no ML inference to score a task).
+
+    Every tuning knob defaults to the module-level constants and can be
+    overridden per instance:
+
+    Args:
+        baseline_ranks: Per-task-type baseline ranks; missing task types
+            fall back to the defaults.
+        length_bumps: ``(word_threshold, score_bump)`` pairs applied in
+            descending threshold order (largest applicable threshold wins).
+        high_signal_keywords: Keyword literals matched on word boundaries.
+        keyword_double_hit_threshold: Distinct hits needed for a second
+            keyword bump.
+
+    Examples:
+        >>> strict = HeuristicScorer(
+        ...     baseline_ranks={TaskType.REVIEW: 3},
+        ...     length_bumps=((100, 1),),
+        ... )
+        >>> complexity, _ = strict.score(Task(TaskType.REVIEW, "short"))
+        >>> complexity is Complexity.HIGH
+        True
     """
+
+    def __init__(
+        self,
+        baseline_ranks: Mapping[TaskType, int] | None = None,
+        length_bumps: Sequence[tuple[int, int]] | None = None,
+        high_signal_keywords: Sequence[str] | None = None,
+        keyword_double_hit_threshold: int = KEYWORD_DOUBLE_HIT_THRESHOLD,
+    ) -> None:
+        merged_baselines = dict(BASELINE_RANKS)
+        if baseline_ranks:
+            merged_baselines.update(baseline_ranks)
+        self._baseline_ranks = merged_baselines
+
+        self._length_bumps = tuple(length_bumps) if length_bumps else LENGTH_BUMPS
+        keywords = high_signal_keywords if high_signal_keywords else HIGH_SIGNAL_KEYWORDS
+        self._keywords = tuple(keywords)
+        self._patterns = tuple(
+            re.compile(rf"\b{re.escape(keyword)}\b", re.IGNORECASE)
+            for keyword in self._keywords
+        )
+        self._double_hit_threshold = keyword_double_hit_threshold
 
     def score(self, task: Task) -> tuple[Complexity, str]:
         """Score ``task`` and return ``(complexity, reason)``.
@@ -100,39 +159,65 @@ class HeuristicScorer:
             baseline debug=2 (medium) +1 length (412 words)
             +1 keywords (race condition) => score 3 (high)
         """
-        baseline = BASELINE_RANKS[task.type]
+        complexity, reason, _ = self._evaluate(task)
+        return complexity, reason
+
+    def confidence(self, task: Task) -> float:
+        """0..1 estimate of score confidence given the available evidence.
+
+        A plain default task with no extra signals lands at the base; every
+        additional signal class (length, keywords, context) adds toward the
+        cap, and a double keyword hit signals strong evidence.
+        """
+        _, _, confidence = self._evaluate(task)
+        return confidence
+
+    def _evaluate(self, task: Task) -> tuple[Complexity, str, float]:
+        """Internal evaluation returning (complexity, reason, confidence)."""
+        baseline = self._baseline_ranks[task.type]
         score = baseline
+        confidence = _CONFIDENCE_BASE
         events: list[str] = []
 
         words = len(f"{task.prompt} {task.context}".split())
-        for threshold, bump in sorted(LENGTH_BUMPS, reverse=True):
+        ordered_bumps = sorted(self._length_bumps, reverse=True)
+        for threshold, bump in ordered_bumps:
             if words > threshold:
                 score += bump
+                confidence += _CONFIDENCE_LENGTH_STEP
                 events.append(f"+{bump} length ({words} words)")
                 break  # the largest applicable threshold wins
 
         hits = [
             keyword
-            for keyword, pattern in zip(HIGH_SIGNAL_KEYWORDS, _KEYWORD_PATTERNS, strict=True)
+            for keyword, pattern in zip(self._keywords, self._patterns, strict=True)
             if pattern.search(task.prompt) or pattern.search(task.context)
         ]
         if hits:
-            bump = 2 if len(hits) >= KEYWORD_DOUBLE_HIT_THRESHOLD else 1
+            double = len(hits) >= self._double_hit_threshold
+            bump = 2 if double else 1
             score += bump
+            confidence += (
+                _CONFIDENCE_KEYWORD_DOUBLE_STEP if double else _CONFIDENCE_KEYWORD_STEP
+            )
             shown = ", ".join(hits[:4])
             events.append(f"+{bump} keywords ({shown})")
+
+        if task.context.strip():
+            confidence += _CONFIDENCE_CONTEXT_STEP
 
         clamped = max(0, min(score, 3))
         if clamped != score:
             events.append(f"clamped {score} -> 3")
             score = clamped
+        confidence = min(confidence, _CONFIDENCE_CAP)
 
         complexity = Complexity.at(score)
         reason = f"baseline {task.type.value}={baseline}"
         if events:
             reason += " " + " ".join(events)
         reason += f" => score {score}/3 ({complexity.value})"
-        return complexity, reason
+        return complexity, reason, round(confidence, 2)
 
 
 __all__: Sequence[str] = [

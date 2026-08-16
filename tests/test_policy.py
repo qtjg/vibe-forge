@@ -175,7 +175,58 @@ def test_decision_serializes_to_dashboard_shape() -> None:
         "reason",
         "model",
         "ollama_tag",
+        "confidence",
+        "token_budget",
     ):
         assert key in payload
+
+
+def test_decision_carries_confidence_when_scorer_provides_it() -> None:
+    router = PolicyRouter(
+        scorer=HeuristicScorer(),
+        registry=ModelRegistry.from_yaml(_ONE_TIER_YAML),
+    )
+
+    decision = router.route(_make_racy_task())
+
+    assert decision.confidence is not None
+    assert 0.0 <= decision.confidence <= 1.0
+    assert decision.as_dict()["confidence"] == decision.confidence
+
+
+def test_decision_has_no_confidence_with_scorer_that_lacks_it() -> None:
+    scorer, registry, _ = make_fake_parts()  # FakeScorer has no confidence()
+    router = PolicyRouter(scorer=scorer, registry=registry)
+
+    decision = router.route(make_task())
+
+    assert decision.confidence is None
+
+
+def test_decision_exposes_token_budget_from_complexity() -> None:
+    scorer, registry, _ = make_fake_parts()
+    router = PolicyRouter(scorer=scorer, registry=registry)
+
+    decision = router.route(make_task())
+
+    assert decision.token_budget == Complexity.MEDIUM.token_budget
+    assert decision.as_dict()["token_budget"] == Complexity.MEDIUM.token_budget
+
+
+_ONE_TIER_YAML = """\
+models:
+  - name: only-tier
+    ollama_tag: test-model:latest
+    complexity_ceiling: high
+    approx_ram_gb: 2.0
+"""
+
+
+def _make_racy_task() -> Task:
+    """A debug task that clearly scores high-confidence high."""
+    return Task(
+        type=TaskType.DEBUG,
+        prompt="Fix the race condition in the async worker pool",
+    )
     assert payload["complexity"] == "medium"
     assert payload["model"] == "test-tier"

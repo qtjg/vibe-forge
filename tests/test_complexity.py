@@ -165,3 +165,89 @@ def test_substring_noise_does_not_bump(scorer: HeuristicScorer) -> None:
     )
     tier_b, _ = scorer.score(task_b)
     assert tier_a is tier_b
+
+
+def test_baseline_override_starts_higher() -> None:
+    strict = HeuristicScorer(baseline_ranks={TaskType.REVIEW: 3})
+    complexity, _ = strict.score(make_task(task_type=TaskType.REVIEW, prompt="short"))
+    assert complexity is Complexity.HIGH
+
+
+def test_empty_baseline_override_keeps_defaults(scorer: HeuristicScorer) -> None:
+    untouched = HeuristicScorer(baseline_ranks={})
+    short = make_task(task_type=TaskType.EXPLAIN, prompt="short")
+    assert untouched.score(short)[0] is scorer.score(short)[0]
+
+
+def test_custom_length_bumps_are_tighter() -> None:
+    strict = HeuristicScorer(length_bumps=((5, 1),))
+    complexity, reason = strict.score(
+        make_task(task_type=TaskType.EXPLAIN, prompt="a b c d e f g h")
+    )
+    assert complexity is Complexity.MEDIUM
+    assert "length" in reason
+
+
+def test_custom_keywords_are_recognized() -> None:
+    custom = HeuristicScorer(high_signal_keywords=("quantum entanglement",))
+    plain, _ = custom.score(make_task(prompt="store the value directly"))
+    tricky = make_task(prompt="handle the quantum entanglement carefully")
+    complexity, reason = custom.score(tricky)
+    assert complexity.rank > plain.rank
+    assert "quantum entanglement" in reason
+
+
+def test_custom_keyword_double_hit_threshold() -> None:
+    one_hit_keywords = HeuristicScorer(
+        high_signal_keywords=("alpha", "beta"), keyword_double_hit_threshold=2
+    )
+    task = make_task(prompt="alpha and beta are both involved")
+    _, reason = one_hit_keywords.score(task)
+    assert "+2" in reason
+
+
+def test_confidence_base_for_plain_task(scorer: HeuristicScorer) -> None:
+    assert scorer.confidence(make_task(prompt="add_customer(db, name, email)")) == 0.5
+
+
+def test_confidence_rises_with_each_signal(scorer: HeuristicScorer) -> None:
+    plain = make_task(prompt="complete this line")
+    assert scorer.confidence(plain) == 0.5
+
+    racy = make_task(
+        task_type=TaskType.DEBUG, prompt="race condition in the worker pool"
+    )
+    assert scorer.confidence(racy) == pytest.approx(0.65)
+
+    long_and_racy = make_task(
+        task_type=TaskType.DEBUG,
+        prompt="race condition in the worker pool",
+        context=" ".join(["w" for _ in range(300)]),
+    )
+    assert scorer.confidence(long_and_racy) == pytest.approx(0.85)
+
+
+def test_confidence_is_capped(scorer: HeuristicScorer) -> None:
+    maxed = make_task(
+        task_type=TaskType.DEBUG,
+        prompt=(
+            "the distributed architecture has a race condition, "
+            "a memory leak, a deadlock, and lock contention"
+        ),
+        context=" ".join(["c" for _ in range(900)]),
+    )
+    assert scorer.confidence(maxed) == pytest.approx(0.9)
+
+
+def test_confidence_is_deterministic(scorer: HeuristicScorer) -> None:
+    task = make_task(
+        task_type=TaskType.DEBUG, prompt="race condition in the worker pool"
+    )
+    assert scorer.confidence(task) == scorer.confidence(task)
+
+
+def test_token_budget_rises_with_complexity() -> None:
+    assert Complexity.TRIVIAL.token_budget == 128
+    assert Complexity.LOW.token_budget == 256
+    assert Complexity.MEDIUM.token_budget == 1024
+    assert Complexity.HIGH.token_budget == 4096

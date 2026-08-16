@@ -110,6 +110,15 @@ The score is clamped to the 4-tier scale, and every decision records *why*:
 baseline debug=2 (medium) +1 length (412 words) +1 keywords (race condition) => score 3 (high)
 ```
 
+Every decision also carries a deterministic **confidence** (0..1) reflecting how much
+evidence the scorer saw, plus a **token budget** (`num_predict`) matched to the chosen
+tier — `vibeforge route --execute` uses it automatically. Scorer knobs (baselines,
+keywords, length thresholds) can be tuned per instance:
+
+```python
+strict = HeuristicScorer(baseline_ranks={TaskType.REVIEW: 3}, length_bumps=((100, 1),))
+```
+
 ## Benchmarking
 
 `vibeforge bench` runs the fixed 36-task suite against every model in your registry

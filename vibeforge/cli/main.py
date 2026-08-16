@@ -118,7 +118,7 @@ def route(
         result = executor.execute(
             decision.model.ollama_tag,
             prompt,
-            options={"temperature": 0.0, "num_predict": 2048},
+            options={"temperature": 0.0, "num_predict": decision.token_budget},
         )
         if result.error:
             typer.echo(f"error: {result.error}", err=True)
@@ -136,6 +136,8 @@ def route(
         typer.echo(f"complexity:    {decision.complexity.value} (score {decision.score}/3)")
         typer.echo(f"chosen model:  {decision.model.name} ({decision.model.ollama_tag})")
         typer.echo(f"reason:        {decision.reason}")
+        if decision.confidence is not None:
+            typer.echo(f"confidence:    {decision.confidence:.2f}")
         if result is not None:
             if result.error:
                 typer.echo(f"execution:     FAILED ({result.error})")

@@ -49,6 +49,11 @@ class Complexity(enum.StrEnum):
         """Position in the tier scale, 0 (trivial) to 3 (high)."""
         return Complexity._RANKS[self]
 
+    @property
+    def token_budget(self) -> int:
+        """Sensible ``num_predict`` for this tier, in output tokens."""
+        return {0: 128, 1: 256, 2: 1024, 3: 4096}[self.rank]
+
     @classmethod
     def at(cls, index: int) -> Complexity:
         """Return the tier at ``index``, clamped to the valid 0..3 range."""
@@ -112,6 +117,10 @@ class RoutingDecision:
         model: The model tier selected for the task.
         fallback_reason: Why the strict cheapest-covering rule was relaxed
             (e.g. the covering tier is not pulled), or ``None``.
+        confidence: 0..1 estimate of how reliable the complexity score is,
+            or ``None`` when the scorer does not provide one.
+        token_budget: Suggested ``num_predict`` for the chosen tier, in
+            output tokens.
         timestamp: UTC wall-clock time the decision was made.
 
     """
@@ -122,7 +131,13 @@ class RoutingDecision:
     reason: str
     model: ModelTier
     fallback_reason: str | None = None
+    confidence: float | None = None
     timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+    @property
+    def token_budget(self) -> int:
+        """Suggested output-token budget for the chosen complexity tier."""
+        return self.complexity.token_budget
 
     def as_dict(self) -> dict[str, object]:
         """Serialize to a plain JSON-ready dict (the dashboard API shape)."""
@@ -134,6 +149,8 @@ class RoutingDecision:
             "score": self.score,
             "complexity": self.complexity.value,
             "reason": self.reason,
+            "confidence": self.confidence,
+            "token_budget": self.token_budget,
             "fallback_reason": self.fallback_reason,
             "model": self.model.name,
             "ollama_tag": self.model.ollama_tag,

@@ -71,6 +71,7 @@ class PolicyRouter:
         """
         complexity, reason = self._scorer.score(task)
         pick = self._registry.pick(complexity, available_tags=available_tags)
+        confidence = getattr(self._scorer, "confidence", None)
         decision = RoutingDecision(
             task=task,
             score=complexity.rank,
@@ -78,6 +79,7 @@ class PolicyRouter:
             reason=reason,
             model=pick.model,
             fallback_reason=pick.fallback_reason,
+            confidence=confidence(task) if callable(confidence) else None,
         )
         self._history.append(decision)
         self._persist(decision)
