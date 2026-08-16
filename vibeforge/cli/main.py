@@ -20,11 +20,12 @@ import typer
 from vibeforge import __version__
 from vibeforge.benchmark.runner import BenchmarkInterrupted, BenchmarkRunner
 from vibeforge.benchmark.tasks import all_tasks, tasks_for
+from vibeforge.compare_models import ModelRun
 from vibeforge.router.complexity import HeuristicScorer, Scorer
 from vibeforge.router.executor import DEFAULT_OLLAMA_URL, OllamaExecutor
 from vibeforge.router.policy import PolicyRouter
 from vibeforge.router.registry import ConfigError, ModelRegistry, find_models_file
-from vibeforge.types import Task, TaskType
+from vibeforge.types import RoutingDecision, Task, TaskType
 
 app = typer.Typer(
     name="vibeforge",
@@ -76,6 +77,12 @@ def route(
     as_json: bool = typer.Option(False, "--json", help="Print the decision as JSON."),
     execute: bool = typer.Option(
         False, "--execute", help="Also run the prompt against the chosen model."
+    ),
+    compare: str | None = typer.Option(
+        None,
+        "--compare",
+        help="Comma-separated tier names to run the prompt against concurrently "
+        "(e.g. tiny-fast,balanced,heavy). Implies execution; not compatible with --execute.",
     ),
     dashboard: str | None = typer.Option(
         None,
@@ -136,6 +143,16 @@ def route(
         raise typer.Exit(code=1)
     decision = router.route(task)
 
+    if compare and execute:
+        typer.echo(
+            "error: --compare already runs the prompt; drop --execute", err=True
+        )
+        raise typer.Exit(code=1)
+
+    if compare:
+        _run_comparison(compare, prompt, decision, registry, host, as_json)
+        return
+
     result = None
     if execute:
         executor = OllamaExecutor(base_url=host)
@@ -192,6 +209,90 @@ def route(
             typer.echo(f"pushed decision to dashboard: {dashboard}")
         except requests.RequestException as exc:
             typer.echo(f"warning: could not reach dashboard at {dashboard}: {exc}", err=True)
+
+
+def _run_comparison(
+    compare: str,
+    prompt: str,
+    decision: RoutingDecision,
+    registry: ModelRegistry,
+    host: str,
+    as_json: bool,
+) -> None:
+    """Run the prompt against several tiers concurrently and render results."""
+    from vibeforge.compare_models import run_models_concurrently
+
+    names = [name.strip() for name in compare.split(",") if name.strip()]
+    known = {model.name for model in registry.models}
+    unknown = [name for name in names if name not in known]
+    if unknown:
+        typer.echo(
+            f"error: unknown tier name(s) {', '.join(unknown)} "
+            f"(known: {', '.join(sorted(known))})",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    models = [(model.name, model.ollama_tag) for model in registry.models if model.name in names]
+    options: dict[str, object] = {"temperature": 0.0, "num_predict": decision.token_budget}
+
+    typer.echo(f"comparing {len(models)} models concurrently on: {prompt!r}")
+    typer.echo("")
+
+    def make_executor() -> object:
+        return OllamaExecutor(base_url=host)
+
+    runs = run_models_concurrently(
+        models,
+        prompt=prompt,
+        executor_factory=make_executor,
+        options=options,
+    )
+
+    if as_json:
+        payload = decision.as_dict()
+        payload["comparisons"] = [
+            {
+                "name": run.name,
+                "ollama_tag": run.ollama_tag,
+                "status": "ok" if run.ok else "error",
+                "latency_ms": run.latency_ms,
+                "eval_count": run.result.eval_count,
+                "output": run.result.output,
+                "error": run.result.error,
+            }
+            for run in runs
+        ]
+        typer.echo(json.dumps(payload, indent=2))
+        return
+
+    for run in runs:
+        _render_model_run(run)
+        typer.echo("")
+
+    typer.echo("summary (concurrent run, lower latency is not the point -- outputs are):")
+    typer.echo(f"  {'model':<16}{'tag':<28}{'latency':>10}{'tokens':>8}  status")
+    for run in runs:
+        latency = f"{run.latency_ms:.0f}ms" if run.latency_ms is not None else "--"
+        tokens = str(run.result.eval_count) if run.result.eval_count is not None else "--"
+        status = "ok" if run.ok else "FAILED"
+        typer.echo(
+            f"  {run.name:<16}{run.ollama_tag:<28}{latency:>10}{tokens:>8}  {status}"
+        )
+
+
+def _render_model_run(run: ModelRun) -> None:
+    """Print one model's comparison block (output or the error)."""
+    typer.echo(f"{run.name} ({run.ollama_tag}):")
+    if run.ok:
+        latency = f"{run.latency_ms:.0f}ms" if run.latency_ms is not None else "?"
+        tokens = run.result.eval_count if run.result.eval_count is not None else "?"
+        rate = run.result.tokens_per_sec
+        rate_text = f" ({rate:.1f} tok/s)" if rate is not None else ""
+        typer.echo(f"  {latency}, {tokens} tokens{rate_text}:")
+        typer.echo(f"  {run.result.output}")
+    else:
+        typer.echo(f"  FAILED: {run.result.error}")
 
 
 @app.command("bench")

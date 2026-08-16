@@ -65,6 +65,19 @@ vibeforge route "quick one-liner 3D-dash" --type autocomplete \
 
 ![vibe-forge dashboard](docs/dashboard_view.svg)
 
+### Compare models side by side
+
+```bash
+vibeforge route "explain what a closure is in Python, with a short example" \
+    --type explain --compare tiny-fast,balanced,heavy
+```
+
+Runs every listed tier concurrently on the same prompt (thread pool, per-model failure
+isolation) and prints each output plus a summary table. Noisy single runs stop being a
+basis for taste — you see them side by side.
+
+![vibe-forge model comparison](docs/compare_view.svg)
+
 ## Configuration
 
 Model tiers live in `models.yaml` (user-editable, or set `VIBEFORGE_MODELS` to point

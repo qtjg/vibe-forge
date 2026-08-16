@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="720" viewBox="0 0 1024 720" font-family="Menlo, Consolas, monospace">
+  <rect width="1024" height="720" fill="#0f1117"/>
+  <rect width="1024" height="46" fill="#171a23"/>
+  <text x="24" y="29" fill="#d7dce8" font-size="16" font-weight="bold">vibe-forge<span fill="#e2b96b">.</span></text>
+  <text x="180" y="29" fill="#8b93a7" font-size="12">route --compare tiny-fast,balanced,slow-big --type explain</text>
+
+  <text x="24" y="78" fill="#8b93a7" font-size="11">comparing 3 models concurrently on: 'explain what a closure is in Python, with a short example'</text>
+  <line x1="24" y1="90" x2="1000" y2="90" stroke="#2a3040"/>
+
+  <rect x="24" y="104" width="318" height="392" fill="#171a23" stroke="#2a3040"/>
+  <text x="40" y="128" fill="#6ea8fe" font-size="12.5" font-weight="bold">tiny-fast</text>
+  <text x="286" y="128" fill="#8b93a7" font-size="11" text-anchor="end">qwen2.5:0.5b</text>
+  <text x="40" y="150" fill="#d7dce8" font-size="11">43618ms</text>
+  <text x="120" y="150" fill="#8b93a7" font-size="11">256 tokens</text>
+  <text x="230" y="150" fill="#8b93a7" font-size="11">5.9 tok/s</text>
+  <line x1="40" y1="162" x2="326" y2="162" stroke="#2a3040"/>
+  <text x="40" y="184" fill="#9aa4b8" font-size="10.5">In Python, a closure is an object that</text>
+  <text x="40" y="200" fill="#9aa4b8" font-size="10.5">has access to the variables of its</text>
+  <text x="40" y="216" fill="#9aa4b8" font-size="10.5">enclosing scope even after the outer</text>
+  <text x="40" y="232" fill="#9aa4b8" font-size="10.5">scope has finished executing. It's a</text>
+  <text x="40" y="248" fill="#9aa4b8" font-size="10.5">special kind of function that can be</text>
+  <text x="40" y="264" fill="#9aa4b8" font-size="10.5">used as a parameter or return value.</text>
+  <text x="40" y="286" fill="#6bd39b" font-size="10.5">Here's a simple example:</text>
+  <text x="40" y="302" fill="#c7a25d" font-size="10.5">def outer_function():</text>
+  <text x="52" y="318" fill="#c7a25d" font-size="10.5">def inner_function():</text>
+  <text x="64" y="334" fill="#c7a25d" font-size="10.5">print("Hello from outer_function")</text>
+  <text x="40" y="350" fill="#c7a25d" font-size="10.5">inner_function()</text>
+
+  <rect x="353" y="104" width="318" height="392" fill="#171a23" stroke="#2a3040"/>
+  <text x="369" y="128" fill="#6bd39b" font-size="12.5" font-weight="bold">balanced</text>
+  <text x="615" y="128" fill="#8b93a7" font-size="11" text-anchor="end">llama3.2:1b</text>
+  <text x="369" y="150" fill="#d7dce8" font-size="11">107605ms</text>
+  <text x="449" y="150" fill="#8b93a7" font-size="11">256 tokens</text>
+  <text x="559" y="150" fill="#8b93a7" font-size="11">2.4 tok/s</text>
+  <line x1="369" y1="162" x2="655" y2="162" stroke="#2a3040"/>
+  <text x="369" y="184" fill="#9aa4b8" font-size="10.5">In Python, a closure is a function that</text>
+  <text x="369" y="200" fill="#9aa4b8" font-size="10.5">has access to its own scope and the</text>
+  <text x="369" y="216" fill="#9aa4b8" font-size="10.5">scope of its outer functions. It's a</text>
+  <text x="369" y="232" fill="#9aa4b8" font-size="10.5">way to create a "closed" function that</text>
+  <text x="369" y="248" fill="#9aa4b8" font-size="10.5">can use variables from its outer scope</text>
+  <text x="369" y="264" fill="#9aa4b8" font-size="10.5">even when not explicitly passed as an</text>
+  <text x="369" y="280" fill="#9aa4b8" font-size="10.5">argument.</text>
+  <text x="369" y="302" fill="#c7a25d" font-size="10.5">def outer():</text>
+  <text x="381" y="318" fill="#c7a25d" font-size="10.5">x = 10</text>
+  <text x="381" y="334" fill="#c7a25d" font-size="10.5">def inner():</text>
+  <text x="393" y="350" fill="#c7a25d" font-size="10.5">nonlocal x</text>
+
+  <rect x="682" y="104" width="318" height="392" fill="#171a23" stroke="#2a3040"/>
+  <text x="698" y="128" fill="#e2b96b" font-size="12.5" font-weight="bold">slow-big</text>
+  <text x="944" y="128" fill="#8b93a7" font-size="11" text-anchor="end">llama3.1:latest</text>
+  <text x="698" y="150" fill="#d7dce8" font-size="11">94892ms</text>
+  <text x="778" y="150" fill="#8b93a7" font-size="11">256 tokens</text>
+  <text x="888" y="150" fill="#8b93a7" font-size="11">2.7 tok/s</text>
+  <line x1="698" y1="162" x2="984" y2="162" stroke="#2a3040"/>
+  <text x="698" y="184" fill="#9aa4b8" font-size="10.5">**What is a Closure?**</text>
+  <text x="698" y="200" fill="#9aa4b8" font-size="10.5">In Python (and other languages), a</text>
+  <text x="698" y="216" fill="#9aa4b8" font-size="10.5">closure is a function that has access</text>
+  <text x="698" y="232" fill="#9aa4b8" font-size="10.5">to its own scope and the scope of its</text>
+  <text x="698" y="248" fill="#9aa4b8" font-size="10.5">outer functions. It can "remember"</text>
+  <text x="698" y="264" fill="#9aa4b8" font-size="10.5">variables from those scopes even when</text>
+  <text x="698" y="280" fill="#9aa4b8" font-size="10.5">the outer functions have finished</text>
+  <text x="698" y="296" fill="#9aa4b8" font-size="10.5">executing.</text>
+  <text x="698" y="318" fill="#c7a25d" font-size="10.5">def outer(x):</text>
+  <text x="710" y="334" fill="#c7a25d" font-size="10.5">def inner(y):</text>
+  <text x="722" y="350" fill="#c7a25d" font-size="10.5">return x + y</text>
+
+  <text x="24" y="524" fill="#8b93a7" font-size="11" letter-spacing="1.5">SUMMARY (CONCURRENT RUN)</text>
+  <line x1="24" y1="536" x2="1000" y2="536" stroke="#2a3040"/>
+  <text x="40" y="566" fill="#8b93a7" font-size="11" letter-spacing="1">MODEL</text>
+  <text x="180" y="566" fill="#8b93a7" font-size="11" letter-spacing="1">TAG</text>
+  <text x="480" y="566" fill="#8b93a7" font-size="11" letter-spacing="1">LATENCY</text>
+  <text x="600" y="566" fill="#8b93a7" font-size="11" letter-spacing="1">TOKENS</text>
+  <text x="720" y="566" fill="#8b93a7" font-size="11" letter-spacing="1">STATUS</text>
+  <line x1="40" y1="578" x2="1000" y2="578" stroke="#2a3040"/>
+  <text x="40" y="606" fill="#d7dce8" font-size="11.5" font-weight="bold">tiny-fast</text>
+  <text x="180" y="606" fill="#8b93a7" font-size="11.5">qwen2.5:0.5b</text>
+  <text x="480" y="606" fill="#d7dce8" font-size="11.5">43618ms</text>
+  <text x="600" y="606" fill="#d7dce8" font-size="11.5">256</text>
+  <text x="720" y="606" fill="#6bd39b" font-size="11.5">ok</text>
+  <text x="40" y="630" fill="#d7dce8" font-size="11.5" font-weight="bold">balanced</text>
+  <text x="180" y="630" fill="#8b93a7" font-size="11.5">llama3.2:1b</text>
+  <text x="480" y="630" fill="#d7dce8" font-size="11.5">107605ms</text>
+  <text x="600" y="630" fill="#d7dce8" font-size="11.5">256</text>
+  <text x="720" y="630" fill="#6bd39b" font-size="11.5">ok</text>
+  <text x="40" y="654" fill="#d7dce8" font-size="11.5" font-weight="bold">slow-big</text>
+  <text x="180" y="654" fill="#8b93a7" font-size="11.5">llama3.1:latest</text>
+  <text x="480" y="654" fill="#d7dce8" font-size="11.5">94892ms</text>
+  <text x="600" y="654" fill="#d7dce8" font-size="11.5">256</text>
+  <text x="720" y="654" fill="#6bd39b" font-size="11.5">ok</text>
+  <line x1="40" y1="668" x2="1000" y2="668" stroke="#2a3040"/>
+  <text x="40" y="694" fill="#8b93a7" font-size="11.5">wall-clock 108s (the slowest model), vs 246s run one at a time -- comparison</text>
+  <text x="40" y="710" fill="#8b93a7" font-size="11.5">is free on top of the slowest model.</text>
+</svg>
