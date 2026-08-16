@@ -1,9 +1,11 @@
 """FastAPI backend for the vibe-forge live dashboard.
 
-The dashboard owns an in-memory decision history. Decisions arrive either
-from the same process (e.g. tests) or -- the normal flow -- from the CLI via
-``vibeforge route ... --dashboard http://localhost:8420``, which POSTs a
-JSON decision to :meth:`post_decision`.
+The dashboard owns a decision history that persists to SQLite: decisions
+arrive either from the same process (e.g. tests) or -- the normal flow --
+from the CLI via ``vibeforge route ... --dashboard http://localhost:8420``,
+which POSTs a JSON decision to :meth:`post_decision`. A restart keeps the
+history intact because it lives in ``~/.vibeforge/history.db`` by default
+(override with ``vibeforge serve --db-path``).
 
 API contract (stable; ``index.html`` polls these directly, no build step):
 
@@ -18,6 +20,8 @@ Add new fields to decision dicts, never rename existing ones.
 from __future__ import annotations
 
 import threading
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -25,6 +29,8 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+
+from vibeforge.dashboard.store import HistoryDB
 
 #: Where the no-build static frontend lives inside the installed package.
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -43,7 +49,7 @@ REQUIRED_DECISION_FIELDS: tuple[str, ...] = (
 
 
 class DecisionStore:
-    """A thread-safe in-memory list of decision dicts."""
+    """A thread-safe in-memory list of decision dicts (tests, no-db runs)."""
 
     def __init__(self, initial: list[dict[str, Any]] | None = None) -> None:
         """Start with an optional pre-seeded list of decision dicts."""
@@ -66,22 +72,41 @@ class DecisionStore:
             return len(self._decisions)
 
 
-def create_app(history: list[dict[str, Any]] | None = None) -> FastAPI:
+def create_app(
+    history: list[dict[str, Any]] | None = None,
+    db_path: str | Path | None = None,
+) -> FastAPI:
     """Build the dashboard application.
 
     Args:
-        history: Optional pre-seeded decisions (e.g. replaying a session).
+        history: Optional pre-seeded decisions (in-memory runs only).
+        db_path: Optional SQLite file path; when given, decisions persist
+            across restarts. Without it the dashboard stays in-memory.
 
     Returns:
         A configured :class:`FastAPI` application.
     """
-    store = DecisionStore(initial=history)
+    if db_path is not None:
+        store: Any = HistoryDB(db_path)
+    else:
+        store = DecisionStore(initial=history)
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        """Close the store on shutdown (context manager for FastAPI)."""
+        yield
+        closer = getattr(store, "close", None)
+        if callable(closer):
+            closer()
+
     app = FastAPI(
         title="vibe-forge dashboard",
         description="Live view of routing decisions for local-first LLM routing.",
         version="0.1.0",
+        lifespan=lifespan,
     )
     app.state.store = store
+    app.state.db_path = str(db_path) if db_path is not None else None
 
     @app.get("/")
     def index() -> FileResponse:

@@ -208,18 +208,27 @@ def run(
 def serve(
     host: str = typer.Option("127.0.0.1", "--host", help="Interface to bind."),
     port: int = typer.Option(8420, "--port", help="Port to listen on."),
+    db_path: Path | None = typer.Option(
+        None,
+        "--db-path",
+        help="SQLite history file (default: ~/.vibeforge/history.db).",
+    ),
 ) -> None:
     """Start the live dashboard at ``http://localhost:8420``.
 
-    The dashboard owns an in-memory decision history. Push decisions to it
+    Decisions persist to SQLite and survive restarts. Push decisions to it
     from the CLI with ``vibeforge route ... --dashboard http://localhost:8420``.
     """
     import uvicorn
 
     from vibeforge.dashboard.app import create_app
+    from vibeforge.dashboard.store import default_db_path
 
+    resolved = db_path if db_path is not None else default_db_path()
+    resolved.parent.mkdir(parents=True, exist_ok=True)
     typer.echo(f"dashboard serving at http://{host}:{port}  (Ctrl+C to stop)")
-    uvicorn.run(create_app(), host=host, port=port, log_level="info")
+    typer.echo(f"history db:         {resolved}")
+    uvicorn.run(create_app(db_path=resolved), host=host, port=port, log_level="info")
 
 
 if __name__ == "__main__":

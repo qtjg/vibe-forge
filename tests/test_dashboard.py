@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -122,3 +123,26 @@ def test_app_can_be_seeded_with_history() -> None:
     body = client.get("/api/decisions").json()
     assert len(body["decisions"]) == 1
     assert body["decisions"][0]["model"] == "balanced"
+
+
+def test_app_persists_across_restarts(
+    tmp_path: Path,
+) -> None:
+    """Kill simulation: app #1 writes, app #2 (fresh process) reads it back."""
+    db_path = tmp_path / "dashboard.db"
+
+    with TestClient(create_app(db_path=db_path)) as first:
+        assert (
+            first.post("/api/decisions", json=make_decision(model="tiny-fast")).status_code == 200
+        )
+
+    with TestClient(create_app(db_path=db_path)) as second:
+        body = second.get("/api/decisions").json()
+        assert len(body["decisions"]) == 1
+        assert body["decisions"][0]["model"] == "tiny-fast"
+
+
+def test_in_memory_app_has_no_db_file() -> None:
+    app = create_app()
+    assert app.state.db_path is None
+    assert len(app.state.store) == 0
