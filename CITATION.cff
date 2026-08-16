@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use vibe-forge or its benchmark data in your research, please cite it as follows."
+authors:
+  - family-names: "Maya"
+    given-names: "Maya"
+    orcid: ""
+title: "vibe-forge: local-first policy router for coding assistants"
+version: "0.1.0"
+date-released: "2026-08-16"
+url: "https://github.com/maya/vibe-forge"
+license: "MIT"
+keywords:
+  - "llm-routing"
+  - "ollama"
+  - "local-first"
+  - "benchmarking"
+  - "code-assistants"
+abstract: >-
+  vibe-forge routes coding subtasks to different local LLMs served by Ollama
+  based on task complexity, keeping every inference on-device. It ships a
+  deterministic heuristic scorer with explainable decisions, a
+  cheapest-covering-model tier registry, a fixed 36-task benchmark suite that
+  emits pandas-friendly CSV results, and a live dashboard.
+references:
+  - type: software
+    title: "Ollama"
+    notes: "Local LLM server used for all inference."
+    url: "https://ollama.com"
