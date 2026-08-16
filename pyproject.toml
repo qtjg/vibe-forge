@@ -40,6 +40,11 @@ dev = [
 [project.scripts]
 vibeforge = "vibeforge.cli.main:app"
 
+[project.urls]
+Homepage = "https://github.com/maya/vibe-forge"
+Repository = "https://github.com/maya/vibe-forge"
+Issues = "https://github.com/maya/vibe-forge/issues"
+
 [tool.setuptools]
 include-package-data = true
 

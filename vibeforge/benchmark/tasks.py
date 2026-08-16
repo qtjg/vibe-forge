@@ -300,6 +300,13 @@ TASKS: tuple[BenchmarkTask, ...] = (
         "safe under partial failures, and how should retries be scoped?",
         note="architecture review (keyword bump)",
     ),
+    _t(
+        "review-06",
+        V,
+        "review this caching layer for correctness under memory pressure: eviction, "
+        "expiry, and crash-consistency",
+        note="memory/consistency review (keyword bump)",
+    ),
 )
 
 
