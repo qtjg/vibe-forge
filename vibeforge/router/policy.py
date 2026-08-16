@@ -3,12 +3,18 @@
 :class:`PolicyRouter` is the tiny orchestration layer that the CLI and the
 dashboard talk to. It depends on the :class:`Scorer` protocol and the
 :class:`ModelRegistry` -- swap either one without touching the other layers.
+
+History is kept in memory (the dashboard's fast path) and, when a
+:class:`~vibeforge.history.HistoryStore` is supplied, also appended to a
+durable JSONL file. Persistence is best-effort: a store failure must never
+fail a route.
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
 
+from vibeforge.history import HistoryStore
 from vibeforge.router.complexity import Scorer
 from vibeforge.router.registry import ModelRegistry
 from vibeforge.types import RoutingDecision, Task
@@ -31,6 +37,7 @@ class PolicyRouter:
         scorer: Scorer,
         registry: ModelRegistry,
         history: list[RoutingDecision] | None = None,
+        history_store: HistoryStore | None = None,
     ) -> None:
         """Build a router from a scorer and a model registry.
 
@@ -39,10 +46,13 @@ class PolicyRouter:
             registry: The model registry to pick tiers from.
             history: Optional pre-seeded decision history (e.g. dashboard
                 replay); a fresh list is created when omitted.
+            history_store: Optional durable JSONL store; every routed
+                decision is appended to it (best-effort, failures ignored).
         """
         self._scorer = scorer
         self._registry = registry
         self._history: list[RoutingDecision] = history if history is not None else []
+        self._history_store = history_store
 
     def route(self, task: Task) -> RoutingDecision:
         """Score ``task``, pick a model, record, and return the decision.
@@ -64,7 +74,17 @@ class PolicyRouter:
             model=model,
         )
         self._history.append(decision)
+        self._persist(decision)
         return decision
+
+    def _persist(self, decision: RoutingDecision) -> None:
+        """Append the decision to the durable store, ignoring failures."""
+        if self._history_store is None:
+            return
+        try:
+            self._history_store.append(decision.as_dict())
+        except OSError:
+            pass
 
     def recent(self, limit: int = 50) -> list[RoutingDecision]:
         """Return the last ``limit`` decisions, newest first.
