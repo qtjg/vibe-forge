@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>vibe-forge · routing dashboard</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --panel: #171a23;
+    --panel-2: #1d2130;
+    --border: #2a3040;
+    --text: #d7dce8;
+    --muted: #8b93a7;
+    --accent: #e2b96b;
+    --green: #6bd39b;
+    --red: #e06c75;
+    --blue: #6ea8fe;
+    --mono: "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+  header {
+    padding: 18px 28px;
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+  }
+  header h1 {
+    margin: 0;
+    font-size: 17px;
+    letter-spacing: 0.5px;
+  }
+  header h1 .dot { color: var(--accent); }
+  header .status { margin-left: auto; color: var(--muted); font-size: 12px; }
+  header .status .live {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--green); margin-right: 6px; animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 50% { opacity: 0.35; } }
+  main {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 18px;
+    padding: 18px 28px;
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .panel h2 {
+    margin: 0 0 12px; font-size: 12px; text-transform: uppercase;
+    letter-spacing: 1.5px; color: var(--muted); font-weight: 600;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    text-align: left; color: var(--muted); font-weight: 600;
+    font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+    padding: 6px 8px; border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 8px; border-bottom: 1px solid var(--border);
+    vertical-align: top; line-height: 1.45;
+  }
+  tr:last-child td { border-bottom: none; }
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 10px;
+    font-size: 11px; letter-spacing: 0.4px;
+  }
+  .b-trivial { background: #23362c; color: var(--green); }
+  .b-low     { background: #2c3b28; color: #a8d08d; }
+  .b-medium  { background: #3d3423; color: var(--accent); }
+  .b-high    { background: #40252a; color: var(--red); }
+  .model { color: var(--blue); font-weight: 600; }
+  .time  { color: var(--muted); white-space: nowrap; font-size: 11.5px; }
+  .lat   { white-space: nowrap; }
+  .reason { color: var(--muted); max-width: 340px; overflow: hidden;
+            text-overflow: ellipsis; white-space: nowrap; }
+  .empty { color: var(--muted); text-align: center; padding: 42px 10px; line-height: 1.8; }
+  .empty code { color: var(--accent); }
+  .chart-wrap { min-height: 200px; }
+  #chart { width: 100%; }
+  .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+  .stat { background: var(--panel-2); border-radius: 6px; padding: 10px; text-align: center; }
+  .stat .n { font-size: 20px; color: var(--accent); }
+  .stat .l { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .per-model { margin-top: 6px; display: grid; gap: 8px; }
+  .model-row {
+    display: grid; grid-template-columns: 90px 1fr auto; gap: 10px;
+    align-items: center; font-size: 12px;
+  }
+  .model-row .bar { background: var(--panel-2); border-radius: 4px; height: 14px; overflow: hidden; }
+  .model-row .bar > div {
+    height: 100%; background: linear-gradient(90deg, var(--accent), #c79a4d);
+    border-radius: 4px; min-width: 2px;
+  }
+  .model-row .count { color: var(--muted); }
+  .model-row .bar-wrap { position: relative; }
+  footer { padding: 14px 28px; color: var(--muted); font-size: 11px; }
+  footer code { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>vibe-forge<span class="dot">.</span></h1>
+  <span class="status"><span class="live"></span>live routing dashboard</span>
+</header>
+<main>
+  <section class="panel">
+    <h2>recent routing decisions</h2>
+    <div id="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>time</th><th>type</th><th>complexity</th><th>model</th>
+            <th>latency</th><th>reason</th>
+          </tr>
+        </thead>
+        <tbody id="decisions"></tbody>
+      </table>
+    </div>
+    <div id="empty" class="empty" style="display:none">
+      no decisions yet — route one and push it here:<br>
+      <code>vibeforge route "fix this race condition" --type debug --dashboard http://localhost:8420</code>
+    </div>
+  </section>
+  <section class="panel">
+    <h2>model usage</h2>
+    <div class="stat-grid">
+      <div class="stat"><div class="n" id="s-decisions">–</div><div class="l">decisions</div></div>
+      <div class="stat"><div class="n" id="s-models">–</div><div class="l">models</div></div>
+      <div class="stat"><div class="n" id="s-errors">–</div><div class="l">errors</div></div>
+    </div>
+    <div class="per-model" id="per-model"></div>
+  </section>
+</main>
+<footer>
+  <code>GET /api/decisions</code> · <code>GET /api/stats</code> ·
+  polled every 3s · offline-first, no cloud calls
+</footer>
+
+<script>
+"use strict";
+
+var POLL_MS = 3000;
+var TABLE_MAX_ROWS = 50;
+var COMPLEXITY_CLASS = {
+  trivial: "b-trivial", low: "b-low", medium: "b-medium", high: "b-high"
+};
+
+function esc(text) {
+  var div = document.createElement("div");
+  div.textContent = text == null ? "" : String(text);
+  return div.innerHTML;
+}
+
+function fmtLatency(ms) {
+  if (ms == null) return "–";
+  return ms < 1000 ? ms.toFixed(0) + " ms" : (ms / 1000).toFixed(2) + " s";
+}
+
+function fmtTime(iso) {
+  var d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+function renderDecisions(decisions) {
+  var tbody = document.getElementById("decisions");
+  var empty = document.getElementById("empty");
+  var wrap = document.getElementById("table-wrap");
+  tbody.innerHTML = "";
+
+  if (!decisions || decisions.length === 0) {
+    wrap.style.display = "none";
+    empty.style.display = "";
+    return;
+  }
+  wrap.style.display = "";
+  empty.style.display = "none";
+
+  var rows = decisions.slice(0, TABLE_MAX_ROWS);
+  rows.forEach(function (d) {
+    var tr = document.createElement("tr");
+    var cls = COMPLEXITY_CLASS[d.complexity] || "b-low";
+    tr.innerHTML =
+      '<td class="time">' + fmtTime(d.timestamp) + "</td>" +
+      '<td>' + esc(d.task_type) + "</td>" +
+      '<td><span class="badge ' + cls + '">' + esc(d.complexity) + "</span></td>" +
+      '<td class="model">' + esc(d.model) + "</td>" +
+      '<td class="lat">' + fmtLatency(d.latency_ms) + "</td>" +
+      "<td class=\"reason\" title=\"" + esc(d.reason) + "\">" + esc(d.reason) + "</td>";
+    tbody.appendChild(tr);
+  });
+}
+
+function renderStats(stats) {
+  var models = stats.models || [];
+  var total = 0, errors = 0;
+  models.forEach(function (m) {
+    total += m.decisions;
+    errors += m.errors;
+  });
+
+  document.getElementById("s-decisions").textContent = total;
+  document.getElementById("s-models").textContent = models.length;
+  document.getElementById("s-errors").textContent = errors;
+
+  var max = 1;
+  models.forEach(function (m) { if (m.decisions > max) max = m.decisions; });
+  var wrap = document.getElementById("per-model");
+  wrap.innerHTML = "";
+  models.forEach(function (m) {
+    var row = document.createElement("div");
+    row.className = "model-row";
+    var pct = Math.max(2, Math.round((m.decisions / max) * 100));
+    var lat = m.avg_latency_ms == null ? "–" : m.avg_latency_ms.toFixed(0) + "ms avg";
+    row.innerHTML =
+      '<span class="model">' + esc(m.model) + "</span>" +
+      '<span class="bar"><div style="width:' + pct + '%"></div></span>' +
+      '<span class="count">' + m.decisions + " · " + lat + "</span>";
+    wrap.appendChild(row);
+  });
+}
+
+function poll() {
+  fetch("/api/decisions?limit=" + TABLE_MAX_ROWS)
+    .then(function (r) { return r.json(); })
+    .then(function (data) { renderDecisions(data.decisions); })
+    .catch(function (err) { console.error("decisions poll failed:", err); });
+
+  fetch("/api/stats")
+    .then(function (r) { return r.json(); })
+    .then(function (data) { renderStats(data); })
+    .catch(function (err) { console.error("stats poll failed:", err); });
+}
+
+poll();
+setInterval(poll, POLL_MS);
+</script>
+</body>
+</html>
