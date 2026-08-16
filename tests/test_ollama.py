@@ -1,73 +1,98 @@
-"""Tests for the Ollama availability probe (HTTP mocked, no Ollama needed)."""
+"""Tests for the Ollama availability probe (client mocked, no Ollama needed)."""
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
-import requests
 
 import vibeforge.router.ollama as ollama_module
 from vibeforge.router.ollama import OllamaStatus, probe_ollama
 
 
-class FakeResponse:
-    """Stand-in for ``requests.Response`` with just enough surface."""
+class FakeClient:
+    """Stand-in for ``ollama.Client`` with just enough surface."""
 
-    def __init__(self, status_code: int = 200, json_data: object | None = None) -> None:
-        self.status_code = status_code
-        self._json = json_data
-        self.ok = status_code < 400
+    class Behavior(Exception):
+        pass
 
-    def json(self) -> object:
-        if isinstance(self._json, ValueError):
-            raise self._json
-        return self._json
+    def __init__(self, host: str | None = None, timeout: float | None = None) -> None:
+        self.host = host
+        self.timeout = timeout
+        self.closed = False
+
+    def list(self) -> object:
+        raise self.Behavior("not configured")
+
+    def close(self) -> None:
+        self.closed = True
 
 
-def test_probe_reports_pulled_tags_and_version(monkeypatch: pytest.MonkeyPatch) -> None:
-    captured: dict = {}
+def install_fake(
+    monkeypatch: pytest.MonkeyPatch,
+    behavior: object | tuple[type[Exception], str],
+) -> dict[str, FakeClient]:
+    """Patch ``ollama.Client`` with a fake whose ``list()`` raises ``behavior``
+    or returns it. Returns a mutable holder for the created instance."""
 
-    def fake_get(url: str, timeout: float) -> FakeResponse:
-        captured["url"] = url
-        captured["timeout"] = timeout
-        return FakeResponse(
-            json_data={
-                "version": "0.5.0",
-                "models": [
-                    {"name": "qwen2.5:0.5b"},
-                    {"name": "llama3.1:latest"},
-                ],
-            }
-        )
+    def _list(behavior: object) -> object:
+        if isinstance(behavior, tuple):
+            exc, message = behavior
+            raise exc(message)
+        return behavior
 
-    monkeypatch.setattr(ollama_module.requests, "get", fake_get)
+    holder: dict[str, FakeClient] = {}
+
+    def factory(host: str | None = None, timeout: float | None = None) -> FakeClient:
+        fake = FakeClient(host=host, timeout=timeout)
+        fake.list = lambda: _list(behavior)
+        holder["instance"] = fake
+        return fake
+
+    monkeypatch.setattr(ollama_module.ollama, "Client", factory)
+    return holder
+
+
+def two_models() -> object:
+    """A ``list()`` payload with two pulled models."""
+    return SimpleNamespace(
+        models=[
+            SimpleNamespace(model="qwen2.5:0.5b"),
+            SimpleNamespace(model="llama3.1:latest"),
+        ]
+    )
+
+
+def test_probe_reports_pulled_tags_and_connection_info(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = install_fake(monkeypatch, two_models())
 
     status = probe_ollama(base_url="http://ollama.test:11434")
 
     assert status.reachable
     assert status.available
     assert status.pulled_tags == frozenset({"qwen2.5:0.5b", "llama3.1:latest"})
-    assert status.server_version == "0.5.0"
     assert status.error is None
-    assert captured["url"] == "http://ollama.test:11434/api/tags"
-    assert captured["timeout"] == 3.0
+    assert fake["instance"].host == "http://ollama.test:11434"
+    assert fake["instance"].timeout == 3.0
+    assert fake["instance"].closed
 
 
 def test_probe_with_no_models_is_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
-    def fake_get(url: str, timeout: float) -> FakeResponse:
-        return FakeResponse(json_data={"models": []})
-
-    monkeypatch.setattr(ollama_module.requests, "get", fake_get)
+    install_fake(monkeypatch, SimpleNamespace(models=[]))
 
     status = probe_ollama()
     assert status.reachable
     assert not status.available
 
 
-def test_probe_connection_error_is_reported_not_raised(monkeypatch: pytest.MonkeyPatch) -> None:
-    def fake_get(url: str, timeout: float) -> FakeResponse:
-        raise requests.ConnectionError("refused")
+def test_probe_connection_error_is_reported_not_raised(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from httpx import ConnectError
 
-    monkeypatch.setattr(ollama_module.requests, "get", fake_get)
+    install_fake(monkeypatch, (ConnectError, "refused"))
 
     status = probe_ollama()
     assert not status.reachable
@@ -76,32 +101,27 @@ def test_probe_connection_error_is_reported_not_raised(monkeypatch: pytest.Monke
 
 
 def test_probe_timeout_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
-    def fake_get(url: str, timeout: float) -> FakeResponse:
-        raise requests.Timeout("slow")
+    from httpx import TimeoutException
 
-    monkeypatch.setattr(ollama_module.requests, "get", fake_get)
+    install_fake(monkeypatch, (TimeoutException, "slow"))
 
     status = probe_ollama()
     assert not status.reachable
     assert "timed out" in (status.error or "")
 
 
-def test_probe_non_200_is_an_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    def fake_get(url: str, timeout: float) -> FakeResponse:
-        return FakeResponse(status_code=500, json_data={})
+def test_probe_http_error_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
+    from ollama import ResponseError
 
-    monkeypatch.setattr(ollama_module.requests, "get", fake_get)
+    install_fake(monkeypatch, (ResponseError, '{"error": "boom"}'))
 
     status = probe_ollama()
     assert not status.reachable
-    assert "HTTP 500" in (status.error or "")
+    assert "HTTP" in (status.error or "")
 
 
 def test_probe_non_json_is_an_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    def fake_get(url: str, timeout: float) -> FakeResponse:
-        return FakeResponse(status_code=200, json_data=ValueError("nope"))
-
-    monkeypatch.setattr(ollama_module.requests, "get", fake_get)
+    install_fake(monkeypatch, (ValueError, "nope"))
 
     status = probe_ollama()
     assert not status.reachable
@@ -109,15 +129,12 @@ def test_probe_non_json_is_an_error(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_status_serializes_to_json_shape(monkeypatch: pytest.MonkeyPatch) -> None:
-    def fake_get(url: str, timeout: float) -> FakeResponse:
-        return FakeResponse(json_data={"models": [{"name": "a:latest"}]})
-
-    monkeypatch.setattr(ollama_module.requests, "get", fake_get)
+    install_fake(monkeypatch, two_models())
 
     payload = probe_ollama().as_dict()
-    for key in ("reachable", "available", "pulled_tags", "server_version", "error", "checked_at"):
+    for key in ("reachable", "available", "pulled_tags", "error", "checked_at"):
         assert key in payload
-    assert payload["pulled_tags"] == ["a:latest"]
+    assert payload["pulled_tags"] == ["llama3.1:latest", "qwen2.5:0.5b"]
 
 
 def test_ollama_status_is_a_dataclass() -> None:

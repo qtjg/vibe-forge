@@ -79,7 +79,7 @@ ones** — the page and the CLI both rely on the current shapes.
 ## Tests
 
 - Every module gets a test module in `tests/`.
-- `test_executor.py` mocks `requests.post` — never require a live Ollama.
+- `test_executor.py` mocks the `ollama` client — never require a live Ollama.
 - Run `pytest` locally before pushing; CI runs ruff + pytest + a package
   build check on Python 3.11–3.13.
 

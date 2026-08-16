@@ -1,10 +1,12 @@
 """Talk to a local Ollama server and time the generation.
 
-:class:`OllamaExecutor` is the only layer that touches the network. It never
-raises for expected failure modes (Ollama down, model not pulled, timeout,
-garbage response): it catches them and returns an :class:`ExecutionResult`
-with ``error`` and ``error_kind`` set, so the CLI and benchmark can keep
-going.
+:class:`OllamaExecutor` is the only layer that touches the network. It talks
+to Ollama through the official ``ollama`` Python client (never raw HTTP), so
+the project rides the ecosystem's actual tooling instead of reimplementing
+it. The executor never raises for expected failure modes (Ollama down, model
+not pulled, timeout, garbage response): it catches them and returns an
+:class:`ExecutionResult` with ``error`` and ``error_kind`` set, so the CLI
+and benchmark can keep going.
 
 Transient failures (timeouts, connection errors, HTTP 429/5xx) are retried
 with exponential backoff before giving up.
@@ -12,10 +14,12 @@ with exponential backoff before giving up.
 
 from __future__ import annotations
 
+import json
 import time
 from typing import Any
 
-import requests
+import httpx
+import ollama
 
 from vibeforge.types import ExecutionResult
 
@@ -99,25 +103,27 @@ class OllamaExecutor:
             An :class:`ExecutionResult`; ``error`` is set when the request
             could not complete.
         """
-        url = f"{self._base_url}/api/generate"
-        payload: dict[str, Any] = {"model": model_tag, "prompt": prompt, "stream": False}
-        if options:
-            payload["options"] = options
         per_call = self._timeout if timeout is None else timeout
 
         for attempt in range(self._max_retries + 1):
             if attempt:
                 time.sleep(self._backoff_seconds(attempt))
             started = time.perf_counter()
+            client = ollama.Client(host=self._base_url, timeout=per_call)
             try:
-                response = requests.post(url, json=payload, timeout=per_call)
-            except requests.Timeout:
+                response = client.generate(
+                    model=model_tag,
+                    prompt=prompt,
+                    stream=False,
+                    options=options if options else {},
+                )
+            except httpx.TimeoutException:
                 if attempt < self._max_retries:
                     continue
                 return self._failure(
                     model_tag, prompt, "timeout", f"timed out after {per_call}s", attempt
                 )
-            except requests.ConnectionError as exc:
+            except httpx.ConnectError as exc:
                 if attempt < self._max_retries:
                     continue
                 detail = (
@@ -125,29 +131,23 @@ class OllamaExecutor:
                     f"(is the server running?). {exc.__class__.__name__}: {exc}"
                 )
                 return self._failure(model_tag, prompt, "connection", detail, attempt)
-            except requests.RequestException as exc:
+            except httpx.TransportError as exc:
                 if attempt < self._max_retries:
                     continue
                 return self._failure(
                     model_tag, prompt, "request", f"Ollama request failed: {exc}", attempt
                 )
-            finally:
-                elapsed_ms = (time.perf_counter() - started) * 1000.0
-
-            if not response.ok:
-                if response.status_code in _RETRYABLE_HTTP_STATUS and attempt < self._max_retries:
+            except ollama.ResponseError as exc:
+                if exc.status_code in _RETRYABLE_HTTP_STATUS and attempt < self._max_retries:
                     continue
                 return self._failure(
                     model_tag,
                     prompt,
                     "http",
-                    _describe_http_error(response),
+                    _describe_ollama_error(exc),
                     attempt,
-                    latency_ms=elapsed_ms,
+                    latency_ms=_elapsed_ms(started),
                 )
-
-            try:
-                body: dict[str, Any] = response.json()
             except ValueError:
                 return self._failure(
                     model_tag,
@@ -155,15 +155,18 @@ class OllamaExecutor:
                     "json",
                     "Ollama returned a non-JSON response",
                     attempt,
-                    latency_ms=elapsed_ms,
+                    latency_ms=_elapsed_ms(started),
                 )
+            finally:
+                client.close()
+                elapsed_ms = _elapsed_ms(started)
 
             return ExecutionResult(
                 model=model_tag,
                 prompt=prompt,
                 latency_ms=elapsed_ms,
-                eval_count=body.get("eval_count"),
-                output=body.get("response") or body.get("output"),
+                eval_count=response.eval_count,
+                output=response.response,
             )
 
         raise AssertionError("unreachable: loop always returns")  # pragma: no cover
@@ -200,12 +203,21 @@ class OllamaExecutor:
         return self._base_url
 
 
-def _describe_http_error(response: requests.Response) -> str:
-    """Build a readable error message from a non-200 Ollama response."""
+def _describe_ollama_error(exc: ollama.ResponseError) -> str:
+    """Extract the readable error body from an Ollama error response."""
     try:
-        body = response.json()
-        if isinstance(body, dict) and "error" in body:
-            return f"Ollama error (HTTP {response.status_code}): {body['error']}"
-    except ValueError:
-        pass
-    return f"Ollama error (HTTP {response.status_code}): {response.text[:200]}"
+        body = json.loads(exc.error)
+        if isinstance(body, dict) and body.get("error"):
+            detail = body["error"]
+        else:
+            detail = exc.error
+    except (json.JSONDecodeError, TypeError):
+        detail = exc.error
+    if exc.status_code is not None and exc.status_code > 0:
+        return f"Ollama error (HTTP {exc.status_code}): {detail}"
+    return f"Ollama error: {detail}"
+
+
+def _elapsed_ms(started: float) -> float:
+    """Wall-clock milliseconds since ``started``."""
+    return (time.perf_counter() - started) * 1000.0
