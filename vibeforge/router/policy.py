@@ -54,24 +54,30 @@ class PolicyRouter:
         self._history: list[RoutingDecision] = history if history is not None else []
         self._history_store = history_store
 
-    def route(self, task: Task) -> RoutingDecision:
+    def route(
+        self, task: Task, available_tags: set[str] | None = None
+    ) -> RoutingDecision:
         """Score ``task``, pick a model, record, and return the decision.
 
         Args:
             task: The coding subtask to route.
+            available_tags: Tags Ollama reports as pulled; when given, the
+                registry avoids picking models that cannot execute and
+                records a ``fallback_reason`` when it must deviate.
 
         Returns:
             A :class:`RoutingDecision` describing complexity, reason, and the
             chosen model tier.
         """
         complexity, reason = self._scorer.score(task)
-        model = self._registry.pick_for(complexity)
+        pick = self._registry.pick(complexity, available_tags=available_tags)
         decision = RoutingDecision(
             task=task,
             score=complexity.rank,
             complexity=complexity,
             reason=reason,
-            model=model,
+            model=pick.model,
+            fallback_reason=pick.fallback_reason,
         )
         self._history.append(decision)
         self._persist(decision)

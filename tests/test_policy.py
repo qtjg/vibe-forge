@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from vibeforge.router.complexity import HeuristicScorer
 from vibeforge.router.policy import PolicyRouter
-from vibeforge.router.registry import ModelRegistry
+from vibeforge.router.registry import ModelPick, ModelRegistry
 from vibeforge.types import Complexity, ModelTier, RoutingDecision, Task, TaskType
 
 
@@ -27,6 +27,11 @@ class FakeRegistry:
 
     def pick_for(self, complexity: Complexity) -> ModelTier:
         return self._model
+
+    def pick(
+        self, complexity: Complexity, available_tags: set[str] | None = None
+    ) -> ModelPick:
+        return ModelPick(model=self._model)
 
 
 def make_fake_parts() -> tuple[FakeScorer, FakeRegistry, ModelTier]:

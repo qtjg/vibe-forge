@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import IO, Any
 
@@ -16,7 +17,7 @@ import yaml
 
 from vibeforge.types import Complexity, ModelTier
 
-__all__ = ["ConfigError", "ModelRegistry", "find_models_file"]
+__all__ = ["ConfigError", "ModelPick", "ModelRegistry", "find_models_file"]
 
 #: Environment variable that overrides the models config file location.
 CONFIG_ENV_VAR = "VIBEFORGE_MODELS"
@@ -30,6 +31,20 @@ PACKAGE_DEFAULT: Path = Path(__file__).resolve().parent.parent / "data" / "model
 
 class ConfigError(Exception):
     """Raised when the models config is missing, malformed, or inconsistent."""
+
+
+@dataclass(frozen=True)
+class ModelPick:
+    """The result of choosing a model, including why a fallback happened.
+
+    Attributes:
+        model: The chosen :class:`ModelTier`.
+        fallback_reason: Why the strict cheapest-covering rule was relaxed,
+            or ``None`` when the pick was the cheapest covering model.
+    """
+
+    model: ModelTier
+    fallback_reason: str | None = None
 
 
 def find_models_file() -> Path:
@@ -131,9 +146,8 @@ class ModelRegistry:
     def pick_for(self, complexity: Complexity) -> ModelTier:
         """Return the cheapest tier whose ceiling covers ``complexity``.
 
-        Falls back to the most capable tier (most RAM) when no configured
-        tier covers the requested complexity, e.g. a registry whose highest
-        ceiling is below the requested tier.
+        Convenience wrapper around :meth:`pick` that drops the fallback
+        reason; see :meth:`pick` for the full semantics.
 
         Args:
             complexity: The complexity tier that must be covered.
@@ -141,10 +155,77 @@ class ModelRegistry:
         Returns:
             The selected :class:`ModelTier`.
         """
+        return self.pick(complexity).model
+
+    def pick(
+        self,
+        complexity: Complexity,
+        available_tags: set[str] | None = None,
+    ) -> ModelPick:
+        """Choose a model for ``complexity``, aware of what is actually pulled.
+
+        Selection rules, in order:
+
+        1. Cheapest tier whose ceiling covers ``complexity``.
+        2. When ``available_tags`` is given and no covering tier is pulled,
+           the most capable *pulled* tier is used as a fallback.
+        3. When nothing is pulled at all, or no availability info was given,
+           the most capable configured tier is the last-resort fallback.
+
+        Every deviation from rule 1 is reported in :attr:`ModelPick.fallback_reason`.
+
+        Args:
+            complexity: The complexity tier that must be covered.
+            available_tags: Set of model tags Ollama reports as pulled;
+                ``None`` disables availability awareness.
+
+        Returns:
+            The selected model plus an optional fallback explanation.
+        """
         eligible = [m for m in self._models if m.complexity_ceiling.rank >= complexity.rank]
+
+        if available_tags is not None:
+            pulled = {m for m in eligible if m.ollama_tag in available_tags}
+            if pulled:
+                return ModelPick(model=min(pulled, key=lambda m: (m.approx_ram_gb, m.name)))
+
+            # A pulled model that can actually execute beats a configured one
+            # that is guaranteed to 404.
+            any_pulled = [m for m in self._models if m.ollama_tag in available_tags]
+            if any_pulled:
+                best = max(any_pulled, key=lambda m: m.approx_ram_gb)
+                return ModelPick(
+                    model=best,
+                    fallback_reason=(
+                        f"no configured model covering {complexity.value} is pulled; "
+                        f"using most capable pulled model {best.name}"
+                    ),
+                )
+            if eligible:
+                return ModelPick(
+                    model=eligible[0],
+                    fallback_reason=(
+                        f"no configured models are pulled; "
+                        f"using configured fallback {eligible[0].name}"
+                    ),
+                )
+            return ModelPick(
+                model=self._models[-1],
+                fallback_reason=(
+                    f"no configured model covers {complexity.value} and none are pulled; "
+                    f"using configured fallback {self._models[-1].name}"
+                ),
+            )
+
         if eligible:
-            return eligible[0]
-        return self._models[-1]
+            return ModelPick(model=eligible[0])
+        return ModelPick(
+            model=self._models[-1],
+            fallback_reason=(
+                f"no configured model covers {complexity.value}; "
+                f"using most capable configured model {self._models[-1].name}"
+            ),
+        )
 
 
 def _parse_tier(entry: dict[str, Any], index: int) -> ModelTier:

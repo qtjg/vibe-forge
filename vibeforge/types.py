@@ -110,6 +110,8 @@ class RoutingDecision:
         complexity: Clamped complexity tier.
         reason: Human-readable explanation of *why* this tier was chosen.
         model: The model tier selected for the task.
+        fallback_reason: Why the strict cheapest-covering rule was relaxed
+            (e.g. the covering tier is not pulled), or ``None``.
         timestamp: UTC wall-clock time the decision was made.
 
     """
@@ -119,6 +121,7 @@ class RoutingDecision:
     complexity: Complexity
     reason: str
     model: ModelTier
+    fallback_reason: str | None = None
     timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     def as_dict(self) -> dict[str, object]:
@@ -131,6 +134,7 @@ class RoutingDecision:
             "score": self.score,
             "complexity": self.complexity.value,
             "reason": self.reason,
+            "fallback_reason": self.fallback_reason,
             "model": self.model.name,
             "ollama_tag": self.model.ollama_tag,
         }
