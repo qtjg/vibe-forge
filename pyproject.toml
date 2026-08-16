@@ -9,7 +9,7 @@ description = "Local-first policy router for coding assistants - routes coding s
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
-authors = [{ name = "Maya" }]
+authors = [{ name = "Mayank Bhaskar" }]
 keywords = ["llm", "ollama", "routing", "local-first", "code-assistant", "offline"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -41,9 +41,9 @@ dev = [
 vibeforge = "vibeforge.cli.main:app"
 
 [project.urls]
-Homepage = "https://github.com/maya/vibe-forge"
-Repository = "https://github.com/maya/vibe-forge"
-Issues = "https://github.com/maya/vibe-forge/issues"
+Homepage = "https://github.com/qtjg/vibe-forge"
+Repository = "https://github.com/qtjg/vibe-forge"
+Issues = "https://github.com/qtjg/vibe-forge/issues"
 
 [tool.setuptools]
 include-package-data = true

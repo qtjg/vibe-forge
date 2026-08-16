@@ -7,7 +7,7 @@ shape — one file per concern, fully tested.
 ## Development setup
 
 ```bash
-git clone https://github.com/maya/vibe-forge
+git clone https://github.com/qtjg/vibe-forge
 cd vibe-forge
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"

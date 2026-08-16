@@ -6,9 +6,16 @@ __pycache__/
 build/
 dist/
 
+# Secrets
+.env
+.env.*
+
 # Virtual environments
 .venv/
 venv/
+
+# Benchmark backups
+benchmark_results.csv.bak
 
 # Tooling caches
 .pytest_cache/

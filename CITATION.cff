@@ -1,13 +1,12 @@
 cff-version: 1.2.0
 message: "If you use vibe-forge or its benchmark data in your research, please cite it as follows."
 authors:
-  - family-names: "Maya"
-    given-names: "Maya"
-    orcid: ""
+  - family-names: "Bhaskar"
+    given-names: "Mayank"
 title: "vibe-forge: local-first policy router for coding assistants"
 version: "0.1.0"
 date-released: "2026-08-16"
-url: "https://github.com/maya/vibe-forge"
+url: "https://github.com/qtjg/vibe-forge"
 license: "MIT"
 keywords:
   - "llm-routing"

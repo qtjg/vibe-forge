@@ -5,7 +5,7 @@ Routes coding subtasks to different local LLMs (via [Ollama](https://ollama.com)
 complexity — so trivial tasks hit small fast models and hard tasks hit stronger ones.
 **Fully offline. Zero cloud API costs. Zero code leaves your machine.**
 
-[![CI](https://github.com/maya/vibe-forge/actions/workflows/ci.yml/badge.svg)](https://github.com/maya/vibe-forge/actions/workflows/ci.yml)
+[![CI](https://github.com/qtjg/vibe-forge/actions/workflows/ci.yml/badge.svg)](https://github.com/qtjg/vibe-forge/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 [![Ollama required](https://img.shields.io/badge/ollama-required-orange)](https://ollama.com)
@@ -158,5 +158,5 @@ See [ROADMAP.md](ROADMAP.md).
 
 ## License
 
-[MIT](LICENSE) © 2026 Maya. If you use the benchmark data in a paper, cite via
+[MIT](LICENSE) © 2026 Mayank Bhaskar. If you use the benchmark data in a paper, cite via
 [CITATION.cff](CITATION.cff).
