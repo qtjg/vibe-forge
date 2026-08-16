@@ -3,6 +3,10 @@
 The registry is the single source of truth for what models exist and how
 capable they are. Its one job: given a complexity tier, return the *cheapest*
 model that can cover it -- never route to a bigger model than necessary.
+
+Config parsing and validation live in :mod:`vibeforge.router.schema`
+(pydantic); this module turns the validated config into the runtime
+registry and keeps the *picking* logic.
 """
 
 from __future__ import annotations
@@ -11,10 +15,11 @@ import os
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import IO, Any
+from typing import IO
 
 import yaml
 
+from vibeforge.router.schema import ConfigError, config_from_dict
 from vibeforge.types import Complexity, ModelTier
 
 __all__ = ["ConfigError", "ModelPick", "ModelRegistry", "find_models_file"]
@@ -27,10 +32,6 @@ USER_CONFIG_NAME = "models.yaml"
 
 #: Path of the config bundled with the package (fallback when no user file).
 PACKAGE_DEFAULT: Path = Path(__file__).resolve().parent.parent / "data" / "models.yaml"
-
-
-class ConfigError(Exception):
-    """Raised when the models config is missing, malformed, or inconsistent."""
 
 
 @dataclass(frozen=True)
@@ -125,17 +126,27 @@ class ModelRegistry:
 
     @classmethod
     def from_dict(cls, raw: object) -> ModelRegistry:
-        """Parse tiers from the raw structure produced by YAML loading."""
-        if not isinstance(raw, dict) or "models" not in raw:
-            raise ConfigError('models config must contain a top-level "models:" list')
+        """Parse tiers from the raw structure produced by YAML loading.
 
-        entries = raw["models"]
-        if not isinstance(entries, list) or not entries:
-            raise ConfigError('"models:" must be a non-empty list of tiers')
-        if not all(isinstance(entry, dict) for entry in entries):
-            raise ConfigError('"models:" entries must be mappings (name, ollama_tag, ...)')
+        The structure is validated field-by-field (pydantic) and every
+        problem is reported with its exact location, e.g.
+        ``models[1].approx_ram_gb: Input should be greater than 0``.
 
-        tiers = tuple(_parse_tier(entry, index) for index, entry in enumerate(entries))
+        Raises:
+            ConfigError: When the config is missing, malformed, or has
+                invalid tiers.
+        """
+        config = config_from_dict(raw, source="models config")
+        tiers = tuple(
+            ModelTier(
+                name=tier.name,
+                ollama_tag=tier.ollama_tag,
+                complexity_ceiling=tier.complexity_ceiling,
+                approx_ram_gb=tier.approx_ram_gb,
+                notes=tier.notes,
+            )
+            for tier in config.models
+        )
         return cls(tiers)
 
     @property
@@ -227,40 +238,3 @@ class ModelRegistry:
             ),
         )
 
-
-def _parse_tier(entry: dict[str, Any], index: int) -> ModelTier:
-    """Validate and convert one raw YAML mapping into a :class:`ModelTier`."""
-    required = ("name", "ollama_tag", "complexity_ceiling", "approx_ram_gb")
-    missing = [field for field in required if field not in entry]
-    if missing:
-        raise ConfigError(f"tier #{index + 1} is missing required field(s): {', '.join(missing)}")
-
-    name = str(entry["name"]).strip()
-    if not name:
-        raise ConfigError(f"tier #{index + 1} has an empty name")
-
-    raw_ceiling = entry["complexity_ceiling"]
-    try:
-        ceiling = Complexity(raw_ceiling)
-    except ValueError as exc:
-        valid = ", ".join(tier.value for tier in Complexity)
-        raise ConfigError(
-            f"tier {name!r} has invalid complexity_ceiling {raw_ceiling!r} (valid: {valid})"
-        ) from exc
-
-    try:
-        ram = float(entry["approx_ram_gb"])
-    except (TypeError, ValueError) as exc:
-        raise ConfigError(
-            f"tier {name!r} has invalid approx_ram_gb {entry['approx_ram_gb']!r}"
-        ) from exc
-    if ram <= 0:
-        raise ConfigError(f"tier {name!r} has approx_ram_gb {ram}, must be > 0")
-
-    return ModelTier(
-        name=name,
-        ollama_tag=str(entry["ollama_tag"]),
-        complexity_ceiling=ceiling,
-        approx_ram_gb=ram,
-        notes=str(entry.get("notes", "")),
-    )

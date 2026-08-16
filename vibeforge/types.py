@@ -177,6 +177,9 @@ class ExecutionResult:
         retries_attempted: Number of automatic retries before this result was
             produced; 0 when the first attempt succeeded (or was not
             retryable).
+        status_code: HTTP status code of the failing response, when Ollama
+            answered with an error (``None`` for transport-level failures
+            and successes).
 
     """
 
@@ -188,6 +191,7 @@ class ExecutionResult:
     error: str | None = None
     error_kind: str | None = None
     retries_attempted: int = 0
+    status_code: int | None = None
 
     @property
     def tokens_per_sec(self) -> float | None:
@@ -213,4 +217,5 @@ class ExecutionResult:
             "error": self.error,
             "error_kind": self.error_kind,
             "retries_attempted": self.retries_attempted,
+            "status_code": self.status_code,
         }

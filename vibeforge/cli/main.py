@@ -146,6 +146,18 @@ def route(
         )
         if result.error:
             typer.echo(f"error: {result.error}", err=True)
+            if result.status_code == 404:
+                typer.echo(
+                    f"hint: model '{result.model}' is not pulled — run: "
+                    f"ollama pull {result.model}",
+                    err=True,
+                )
+            elif result.error_kind == "connection":
+                typer.echo(
+                    f"hint: is the Ollama server running? Start it with `ollama serve` "
+                    f"and check it answers at {host}",
+                    err=True,
+                )
 
     payload = decision.as_dict()
     if result is not None:

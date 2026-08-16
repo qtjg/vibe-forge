@@ -123,6 +123,16 @@ class OllamaExecutor:
                 return self._failure(
                     model_tag, prompt, "timeout", f"timed out after {per_call}s", attempt
                 )
+            except ConnectionError:
+                # The ollama SDK translates httpx.ConnectError into the
+                # builtin ConnectionError with an install-hint message.
+                if attempt < self._max_retries:
+                    continue
+                detail = (
+                    f"cannot reach Ollama at {self._base_url} "
+                    f"(is the server running?). Failed to connect, and retries did not help"
+                )
+                return self._failure(model_tag, prompt, "connection", detail, attempt)
             except httpx.ConnectError as exc:
                 if attempt < self._max_retries:
                     continue
@@ -147,6 +157,9 @@ class OllamaExecutor:
                     _describe_ollama_error(exc),
                     attempt,
                     latency_ms=_elapsed_ms(started),
+                    status_code=(
+                        exc.status_code if exc.status_code and exc.status_code > 0 else None
+                    ),
                 )
             except ValueError:
                 return self._failure(
@@ -183,6 +196,7 @@ class OllamaExecutor:
         message: str,
         retries: int,
         latency_ms: float | None = None,
+        status_code: int | None = None,
     ) -> ExecutionResult:
         """Build an error result, mentioning the retry count when relevant."""
         if retries:
@@ -195,6 +209,7 @@ class OllamaExecutor:
             error=message,
             error_kind=kind,
             retries_attempted=retries,
+            status_code=status_code,
         )
 
     @property

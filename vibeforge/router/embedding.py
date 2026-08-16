@@ -48,6 +48,7 @@ _UNAVAILABLE_ERRORS = (
     httpx.TimeoutException,
     httpx.TransportError,
     ollama.ResponseError,
+    ConnectionError,  # the ollama SDK's translation of httpx.ConnectError
     ValueError,  # non-JSON body from a flaky server
 )
 

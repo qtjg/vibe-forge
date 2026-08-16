@@ -128,6 +128,21 @@ def test_fallback_used_on_model_error(monkeypatch: pytest.MonkeyPatch) -> None:
     assert isinstance(tier, Complexity)
 
 
+def test_fallback_used_when_connection_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The ollama SDK raises the builtin ConnectionError on connect
+    # failure; the scorer must treat it as "embeddings unavailable".
+    def raise_connection(*args: object, **kwargs: object) -> object:
+        raise ConnectionError("Failed to connect to Ollama.")
+
+    scorer = make_scorer(monkeypatch)
+    monkeypatch.setattr(embedding_module.ollama, "Client", lambda **_: raise_connection())
+
+    tier, reason = scorer.score(Task(type=TaskType.GENERATE, prompt="small task"))
+    assert "embedding unavailable" in reason
+    assert "ConnectionError" in reason
+    assert isinstance(tier, Complexity)
+
+
 def test_fallback_confidence_delegates(monkeypatch: pytest.MonkeyPatch) -> None:
     def raise_response(*args: object, **kwargs: object) -> object:
         raise ResponseError("nope", 500)

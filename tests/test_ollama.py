@@ -100,6 +100,18 @@ def test_probe_connection_error_is_reported_not_raised(
     assert "cannot reach Ollama" in (status.error or "")
 
 
+def test_probe_sdk_connection_error_is_reported(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The real ollama SDK raises the builtin ConnectionError with an
+    # install hint; the probe must translate it, not let it escape.
+    install_fake(monkeypatch, (ConnectionError, "Failed to connect to Ollama."))
+
+    status = probe_ollama()
+    assert not status.reachable
+    assert "cannot reach Ollama" in (status.error or "")
+
+
 def test_probe_timeout_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
     from httpx import TimeoutException
 

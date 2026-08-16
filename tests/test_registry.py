@@ -195,6 +195,98 @@ def test_bundled_default_config_is_valid() -> None:
         assert model.approx_ram_gb > 0
 
 
+def test_unexpected_tier_key_is_rejected() -> None:
+    with pytest.raises(ConfigError):
+        ModelRegistry.from_yaml("""\
+            models:
+              - name: bad
+                ollama_tag: bad:latest
+                complexity_ceiling: high
+                approx_ram_gb: 1
+                complicancy_ceiling: typo
+            """)
+
+
+def test_unexpected_top_level_key_is_rejected() -> None:
+    with pytest.raises(ConfigError):
+        ModelRegistry.from_yaml("""\
+            models:
+              - name: ok
+                ollama_tag: ok:latest
+                complexity_ceiling: high
+                approx_ram_gb: 1
+            extra_stuff: true
+            """)
+
+
+def test_nan_ram_is_rejected() -> None:
+    with pytest.raises(ConfigError):
+        ModelRegistry.from_yaml("""\
+            models:
+              - name: bad
+                ollama_tag: bad:latest
+                complexity_ceiling: high
+                approx_ram_gb: nan
+            """)
+
+
+def test_infinite_ram_is_rejected() -> None:
+    with pytest.raises(ConfigError):
+        ModelRegistry.from_yaml("""\
+            models:
+              - name: bad
+                ollama_tag: bad:latest
+                complexity_ceiling: high
+                approx_ram_gb: inf
+            """)
+
+
+def test_empty_ollama_tag_is_rejected() -> None:
+    with pytest.raises(ConfigError):
+        ModelRegistry.from_yaml("""\
+            models:
+              - name: bad
+                ollama_tag: ""
+                complexity_ceiling: high
+                approx_ram_gb: 1
+            """)
+
+
+def test_wrong_notes_type_is_rejected() -> None:
+    with pytest.raises(ConfigError):
+        ModelRegistry.from_yaml("""\
+            models:
+              - name: bad
+                ollama_tag: bad:latest
+                complexity_ceiling: high
+                approx_ram_gb: 1
+                notes: [not, a, string]
+            """)
+
+
+def test_top_level_list_is_rejected() -> None:
+    with pytest.raises(ConfigError):
+        ModelRegistry.from_yaml("- not\n- a\n- mapping\n")
+
+
+def test_error_message_names_exact_location() -> None:
+    with pytest.raises(ConfigError) as excinfo:
+        ModelRegistry.from_yaml("""\
+            models:
+              - name: ok
+                ollama_tag: ok:latest
+                complexity_ceiling: high
+                approx_ram_gb: 1
+              - name: bad
+                ollama_tag: bad:latest
+                complexity_ceiling: medium
+                approx_ram_gb: 0
+            """)
+    message = str(excinfo.value)
+    assert "models[1].approx_ram_gb" in message
+    assert "greater than 0" in message
+
+
 def test_pick_is_deterministic_on_ram_tie() -> None:
     registry = ModelRegistry.from_yaml("""\
         models:

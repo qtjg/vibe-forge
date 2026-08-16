@@ -76,6 +76,13 @@ def probe_ollama(
         listing = client.list()
     except httpx.TimeoutException:
         return OllamaStatus(reachable=False, error=f"probe timed out after {timeout}s")
+    except ConnectionError:
+        # The ollama SDK translates httpx.ConnectError into the builtin
+        # ConnectionError with an install hint.
+        return OllamaStatus(
+            reachable=False,
+            error=f"cannot reach Ollama at {base_url} (is the server running?)",
+        )
     except httpx.ConnectError:
         return OllamaStatus(
             reachable=False,

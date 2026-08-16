@@ -149,6 +149,21 @@ def test_connection_error_becomes_error_result(
     assert result.error_kind == "connection"
 
 
+def test_sdk_connection_error_becomes_connection_kind(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The real ollama SDK raises the builtin ConnectionError (with an
+    # install hint), which is a *different* class from httpx.ConnectError.
+    monkeypatch.setattr(executor_module.time, "sleep", lambda _: None)
+    install_client(monkeypatch, [(ConnectionError, "Failed to connect to Ollama.")])
+
+    result = make_executor().execute("m:latest", "p")
+
+    assert not result.ok
+    assert result.error_kind == "connection"
+    assert "cannot reach Ollama" in (result.error or "")
+
+
 def test_timeout_becomes_error_result(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -165,7 +180,7 @@ def test_model_not_pulled_is_an_error_result(
 ) -> None:
     install_client(
         monkeypatch,
-        [(ResponseError, '{"error": "model \'nope:latest\' not found"}')],
+        [(ResponseError, '{"error": "model \'nope:latest\' not found"}', 404)],
     )
 
     result = make_executor().execute("nope:latest", "p")
@@ -173,6 +188,7 @@ def test_model_not_pulled_is_an_error_result(
     assert not result.ok
     assert "model 'nope:latest' not found" in (result.error or "")
     assert result.error_kind == "http"
+    assert result.status_code == 404
 
 
 def test_non_json_success_response_is_an_error(
