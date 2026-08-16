@@ -165,8 +165,7 @@ class HistoryStore:
                 buffer = chunk + buffer
                 lines = buffer.splitlines()
                 buffer = lines[0] if lines and not chunk.endswith("\n") else ""
-                for line in reversed(lines[1:] if buffer else lines):
-                    yield line
+                yield from reversed(lines[1:] if buffer else lines)
             if buffer:
                 yield buffer
 
