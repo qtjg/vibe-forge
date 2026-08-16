@@ -154,6 +154,12 @@ class ExecutionResult:
         eval_count: Number of tokens generated, if reported by Ollama.
         output: The generated text, if the call succeeded.
         error: Error description, if the call failed.
+        error_kind: Machine-readable failure category: ``"timeout"``,
+            ``"connection"``, ``"request"``, ``"http"``, ``"json"``, or
+            ``None`` on success.
+        retries_attempted: Number of automatic retries before this result was
+            produced; 0 when the first attempt succeeded (or was not
+            retryable).
 
     """
 
@@ -163,6 +169,8 @@ class ExecutionResult:
     eval_count: int | None = None
     output: str | None = None
     error: str | None = None
+    error_kind: str | None = None
+    retries_attempted: int = 0
 
     @property
     def tokens_per_sec(self) -> float | None:
@@ -186,4 +194,6 @@ class ExecutionResult:
             "tokens_per_sec": self.tokens_per_sec,
             "output_chars": len(self.output) if self.output else 0,
             "error": self.error,
+            "error_kind": self.error_kind,
+            "retries_attempted": self.retries_attempted,
         }
