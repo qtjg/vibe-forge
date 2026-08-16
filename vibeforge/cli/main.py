@@ -88,11 +88,24 @@ def route(
         show_default=True,
         help="Base URL of the local Ollama server (for --execute).",
     ),
+    scorer: str = typer.Option(
+        "heuristic",
+        "--scorer",
+        help="Routing scorer: 'heuristic' (default) or 'embedding' (experimental).",
+    ),
+    embedding_model: str = typer.Option(
+        "nomic-embed-text",
+        "--embedding-model",
+        help="Ollama embedding model used by --scorer embedding.",
+    ),
 ) -> None:
     """Score ``PROMPT`` and pick the cheapest model that can handle it.
 
     The decision itself is pure logic: no Ollama call happens unless
     ``--execute`` is passed, so routing works even when Ollama is offline.
+    ``--scorer embedding`` needs a live Ollama with the embedding model
+    pulled; it falls back to the heuristic scorer when embeddings are
+    unavailable.
     """
     registry = _load_registry()
 
@@ -109,7 +122,18 @@ def route(
         context=context,
         file_path=str(file_path) if file_path is not None else None,
     )
-    router = PolicyRouter(scorer=HeuristicScorer(), registry=registry)
+    if scorer == "embedding":
+        from vibeforge.router.embedding import EmbeddingScorer
+
+        router = PolicyRouter(
+            scorer=EmbeddingScorer(client_host=host, model=embedding_model),
+            registry=registry,
+        )
+    elif scorer == "heuristic":
+        router = PolicyRouter(scorer=HeuristicScorer(), registry=registry)
+    else:
+        typer.echo(f"error: unknown scorer '{scorer}' (use 'heuristic' or 'embedding')", err=True)
+        raise typer.Exit(code=1)
     decision = router.route(task)
 
     result = None
@@ -201,6 +225,50 @@ def run(
         raise typer.Exit(code=130) from exc
     path = runner.write_csv(rows, output)
     typer.echo(runner.summarize(rows))
+    typer.echo(f"\nresults written to {path}")
+
+
+@app.command("compare-scorers")
+def compare_scorers(
+    output: Path = typer.Option(
+        Path("scorer-comparison.csv"),
+        "--output",
+        help="Where to write the comparison CSV.",
+    ),
+    host: str = typer.Option(
+        DEFAULT_OLLAMA_URL,
+        "--host",
+        show_default=True,
+        help="Base URL of the local Ollama server (for embeddings).",
+    ),
+    embedding_model: str = typer.Option(
+        "nomic-embed-text",
+        "--embedding-model",
+        help="Ollama embedding model to compare against.",
+    ),
+) -> None:
+    """Compare heuristic vs. embedding scoring across the benchmark suite.
+
+    Scores every benchmark task with both strategies and writes one row per
+    task to ``scorer-comparison.csv`` with tier choices and per-call
+    latency. Requires a live Ollama with the embedding model pulled.
+    """
+    from vibeforge.benchmark.compare import ScorerComparison
+    from vibeforge.router.complexity import HeuristicScorer
+    from vibeforge.router.embedding import EmbeddingScorer
+
+    tasks = all_tasks()
+    typer.echo(f"tasks:    {len(tasks)}")
+    typer.echo(f"embedding model: {embedding_model} (host {host})")
+    typer.echo("")
+
+    comparison = ScorerComparison(
+        heuristic=HeuristicScorer(),
+        embedding=EmbeddingScorer(client_host=host, model=embedding_model),
+    )
+    rows = comparison.run(tasks)
+    path = comparison.write_csv(rows, output)
+    typer.echo(comparison.summarize(rows))
     typer.echo(f"\nresults written to {path}")
 
 

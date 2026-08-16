@@ -1,0 +1,26 @@
+# Labeled example prompts for the embedding-based complexity scorer.
+# Each tier lists prompts that a reasonable routing should classify into
+# that tier. The scorer embeds these and assigns a task to the nearest tier.
+#
+# Keep prompts short and varied: they define the decision surface, so
+# duplicate phrasing would bias the nearest-neighbor search.
+trivial:
+  - "complete this line of code"
+  - "add the missing type annotation to this function"
+  - "rename this variable to its snake_case name"
+  - "write the docstring for this helper"
+low:
+  - "explain what this python decorator does"
+  - "generate a small utility function to read a config file"
+  - "add input validation to this form handler"
+  - "refactor this loop into a list comprehension"
+medium:
+  - "refactor this module into smaller classes with clean interfaces"
+  - "add error handling and retries to this network call"
+  - "optimize this query so it stops scanning the whole table"
+  - "debug why this service sometimes returns stale data"
+high:
+  - "fix the race condition in the shared worker pool"
+  - "redesign the distributed cache consensus so it survives partition"
+  - "analyze the memory leak in the long-running event loop"
+  - "harden this microservice against authentication bypass attempts"
