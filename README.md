@@ -45,7 +45,8 @@ ollama pull llama3.1:latest     # balanced tier (everyday tasks)
 ollama pull qwen2.5-coder:14b   # heavy tier (hard tasks) — optional
 
 # 2. Install vibe-forge
-pip install -e ".[dev]"   # from the repo root
+pip install vibe-forge        # core routing; add [dashboard] for the live UI
+pip install "vibe-forge[dashboard]"   # dashboard + history UI
 
 # 3. Route a task
 vibeforge route "explain this regex: (?P<year>\d{4})" --type explain
@@ -201,24 +202,34 @@ the generated output in a `vibe-forge` output channel. It talks only to the dash
 vibeforge/
 ├── types.py              # Task, Complexity, ModelTier, RoutingDecision, ExecutionResult
 ├── router/
+│   ├── task_types.py     # TaskTypeRegistry: built-ins + custom types from models.yaml
 │   ├── complexity.py     # Scorer protocol + HeuristicScorer (rule-based)
 │   ├── embedding.py      # EmbeddingScorer (experimental, nearest-neighbor)
 │   ├── registry.py       # ModelRegistry: models.yaml -> cheapest covering tier
+│   ├── schema.py         # pydantic validation of the models config
 │   ├── policy.py         # PolicyRouter: score -> pick -> history
 │   └── executor.py       # OllamaExecutor via the official ollama client
+├── eval/                 # scorer evaluation: labeled set, metrics, runner, CSV
+├── data/                 # bundled models.yaml + the 48-task ground-truth eval set
 ├── benchmark/            # fixed 36-task suite + runner + scorer comparison (CSV out)
+├── compare_models.py     # concurrent multi-model execution (route --compare)
 ├── dashboard/            # FastAPI app + SQLite decision store + vanilla-JS static page
-└── cli/                  # vibeforge route | bench | serve | compare-scorers
+└── cli/                  # vibeforge route | bench | serve | eval | compare-scorers
 ```
 
 ## Development
 
 ```bash
 pip install -e ".[dev]"
-pytest            # 167 tests, no Ollama required (HTTP is mocked)
+pytest            # 248 tests, no Ollama required (HTTP is mocked)
 ruff check .      # lint
 ruff format --check .  # formatting
 ```
+
+The evaluation harness is reproducible by design: the labeled set and the
+last full run's results are committed (`vibeforge/data/eval-set.yaml`,
+`results/eval-results.csv`), so anyone can re-run `vibeforge eval` and diff
+against them without trusting the README's numbers.
 
 The dashboard API has no build step; the contract is covered by
 `tests/test_dashboard.py` (decisions/stats, route, execute, persistence), and the VS Code
