@@ -43,13 +43,13 @@ jobs:
 
       - name: Smoke-test the dashboard extra install
         run: |
-          pip install "vibe-forge[dashboard]" --no-index --find-links dist/
+          pip install "vibe-forge[dashboard]" --find-links dist/
           vibeforge --version
           pip uninstall -y vibe-forge
 
       - name: Smoke-test the hardware extra install
         run: |
-          pip install "vibe-forge[hardware]" --no-index --find-links dist/
+          pip install "vibe-forge[hardware]" --find-links dist/
           python -c "import psutil; ok = psutil.virtual_memory().total > 0; assert ok, 'psutil probe failed'"
           vibeforge --version
           pip uninstall -y vibe-forge
