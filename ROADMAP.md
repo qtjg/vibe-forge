@@ -1,31 +1,81 @@
 # Roadmap
 
-Near-term direction (roughly in order of importance). Pull requests for any
-of these are very welcome.
+Tracked against the product plan. Items are handed to the coding agent as
+self-contained units: implement -> test -> lint -> docs -> PR. The suite
+grows monotonically and never requires a live Ollama (HTTP is mocked).
 
-1. **ML-based scorer** — a tiny on-device scoring model (distilled, quantized)
-   fine-tuned on the benchmark CSV, replacing the hand-tuned keyword bumps,
-   while keeping the explainable rule-based scorer as a fallback/ensemble.
+Status legend: `[x]` shipped · `[~]` in progress · `[ ]` not started
 
-2. **Multi-turn task chaining** — route multi-step coding workflows
-   (plan -> implement -> test) as a sequence of subtasks, escalating the model
-   tier only when a step's diff/stats warrant it.
+## v0.2.0 — History & Editors (shipped)
 
-3. **History persistence & replay** — write decisions to a local JSONL/SQLite
-   store so the dashboard survives restarts and sessions are replayable,
-   and tag benchmark results per release for the research paper.
+- [x] **1.1 History persistence & replay** — decisions persist to SQLite;
+      the dashboard survives restarts and sessions are replayable.
+- [x] 1.x Extra work pulled in: dashboard API (`/api/route`, `/api/execute`),
+      VS Code extension (`vscode-extension/`), embedding scorer + honest
+      comparison CSV (33.3% agreement).
 
-4. **Editors & tooling integrations** — VS Code extension / LSP that sends
-   autocomplete and quick-explain subtasks on demand, plus an interactive
-   `vibeforge tui` for piped-in diffs.
+## v0.3.0 — Defensible defaults (shipped, pending release)
 
-5. **Hardware-aware tier migration** — read `nvidia-smi`/`ollama ps` to
-   auto-tune `approx_ram_gb` caps so models fit a machine's VRAM without
-   editing `models.yaml` by hand.
+- [x] **2.1 Deterministic eval harness** — committed labeled set
+      (`vibeforge/data/eval-set.yaml`, 48 tasks, 12 per tier) + `vibeforge eval`
+      with real results checked in (`results/eval-results.csv`): heuristic
+      35.4% vs embedding 56.2% accuracy, macro-F1 0.366 vs 0.565.
+- [~] **2.2 Config validation & doctor** — pydantic validation with
+      field-level errors and CLI hints is done (W3-1). The `vibeforge doctor`
+      read-only advisory command is *not* built; validation currently
+      surfaces through `route`/`bench`/`serve` errors only.
+- [x] Extras pulled in: `route --compare` concurrent multi-model runs,
+      plugin-style custom task types (no core edits), 4 failure modes with
+      actionable hints.
+- [~] **5.1 PyPI packaging** — metadata/extras and the release workflow are
+      in; actual publish to TestPyPI + PyPI pending (trusted publishing).
+- [ ] **5.3 Follow-up** — `vibeforge init` (detect `ollama list`, scaffold
+      `models.yaml`) can absorb `doctor --fix` later.
 
-6. **Deterministic eval harness** — regenerate benchmark tables on PRs
-   (CI-only, mocked executor) so routing regressions are caught before merge.
+## v0.4.0 — ML scorer (not started)
 
-Release cadence: tag `v0.1.0` once core routing + benchmark are stable; bump
-minor versions per feature, and keep `benchmark_results.csv` outputs versioned
-per tag so the paper can cite exact numbers tied to a commit.
+- [ ] **3.1 Scorer extension point** — the `Scorer` protocol is in place;
+      add an optional on-device model within it.
+- [ ] **3.2 Training signal** — fine-tune on the benchmark/eval CSVs, keeping
+      the rule-based scorer as fallback/ensemble.
+- [ ] **3.3 Honest public numbers** — opt-in only if it beats the heuristic;
+      publish the comparison the way the embedding scorer was handled.
+- [ ] **5.5 Alternate backend: llama.cpp server** — executor implementing the
+      same interface against llama.cpp's OpenAI-compatible endpoint,
+      selected per-tier (default remains ollama).
+- [ ] **5.6 Docs site** — mkdocs build: architecture, benchmark methodology
+      (36 tasks, honest caveats), scorer comparison writeups.
+
+## v0.5.0 — Task chaining (not started)
+
+- [ ] **4.1 Chain model** — multi-step workflows (plan -> implement -> test);
+      each step reuses the task-type registry (plan ~ explain/generate,
+      implement ~ generate, test ~ debug/review), no parallel system.
+- [ ] **4.2 Escalation** — `vibeforge/router/chain.py`: ChainRunner executes
+      steps in order and escalates tiers mid-chain on signals (diff size,
+      failed test step), with the reason string explaining the escalation.
+      Steps still route through PolicyRouter; the runner only orchestrates.
+- [ ] **4.3 CLI + dashboard** — `vibeforge chain "..." --steps plan,implement,test
+      --execute`; chain runs render grouped in `/api/decisions` (chain id
+      linking steps) and in the dashboard UI; `chain_id` nullable column in
+      the history store; chains work dry (`--execute` omitted).
+
+## Phase 5 — Adoption & polish (interleaved anywhere)
+
+- [~] **5.1 PyPI** — done except the actual publish (see v0.3.0 row).
+- [ ] **5.2 Docker trial** — `docker-compose.yml` bundling Ollama +
+      vibe-forge + dashboard; documented `docker compose up` in the README.
+- [ ] **5.3 First-run setup** — `vibeforge init` + `doctor` (see v0.3.0).
+- [ ] **5.4 Shell completions** — `vibeforge --install-completion`
+      (typer/click built-in mechanism).
+- [ ] **5.5 llama.cpp backend** — see v0.4.0.
+- [ ] **5.6 Docs site** — see v0.4.0.
+
+## Cross-cutting
+
+- Every phase ships `tests/test_<module>.py`; the suite grows monotonically
+  (tracked in commit/PR descriptions, e.g. "229 -> 248 tests").
+- CI matrix (Python 3.11-3.13) green throughout; optional extras never
+  break the base install path (verified per release by wheel smoke tests:
+  base install and `[dashboard]` install).
+- Follow-ups discovered while building: none open besides 2.2's `doctor`.

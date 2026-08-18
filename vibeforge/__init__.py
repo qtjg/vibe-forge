@@ -7,7 +7,7 @@ fully offline.
 
 from __future__ import annotations
 
-__version__ = "0.1.0"
+__version__ = "0.3.0"
 
 from vibeforge.types import (
     Complexity,

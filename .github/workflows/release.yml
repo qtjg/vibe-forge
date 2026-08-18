@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      testpypi:
+        description: "Publish to TestPyPI instead of PyPI (trusted publishing must be enabled there)"
+        type: boolean
+        default: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tooling
+        run: pip install build twine
+
+      - name: Build sdist and wheel
+        run: python -m build
+
+      - name: Check metadata with twine
+        run: twine check dist/*
+
+      - name: Smoke-test the wheel install (base)
+        run: |
+          pip install dist/*.whl
+          vibeforge --version
+          vibeforge route "def add(a, b):" --json | python -c "import json,sys; json.load(sys.stdin)"
+          pip uninstall -y vibe-forge
+
+      - name: Smoke-test the dashboard extra install
+        run: |
+          pip install "vibe-forge[dashboard]" --no-index --find-links dist/
+          vibeforge --version
+
+      - name: Publish to TestPyPI
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.testpypi == 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
+
+      - name: Publish to PyPI
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        uses: pypa/gh-action-pypi-publish@release/v1

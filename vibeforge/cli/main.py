@@ -485,10 +485,18 @@ def serve(
     Decisions persist to SQLite and survive restarts. Push decisions to it
     from the CLI with ``vibeforge route ... --dashboard http://localhost:8420``.
     """
-    import uvicorn
+    try:
+        import uvicorn
 
-    from vibeforge.dashboard.app import create_app
-    from vibeforge.dashboard.store import default_db_path
+        from vibeforge.dashboard.app import create_app
+        from vibeforge.dashboard.store import default_db_path
+    except ImportError as exc:
+        typer.echo(
+            "error: the dashboard needs 'vibe-forge[dashboard]' — "
+            "reinstall with: pip install 'vibe-forge[dashboard]'",
+            err=True,
+        )
+        raise typer.Exit(code=1) from exc
 
     resolved = db_path if db_path is not None else default_db_path()
     resolved.parent.mkdir(parents=True, exist_ok=True)
