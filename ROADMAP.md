@@ -21,9 +21,13 @@ Status legend: `[x]` shipped · `[~]` in progress · `[ ]` not started
       with real results checked in (`results/eval-results.csv`): heuristic
       35.4% vs embedding 56.2% accuracy, macro-F1 0.366 vs 0.565.
 - [x] **2.2 Config validation & doctor** — pydantic validation with
-      field-level errors and CLI hints (W3-1) plus `vibeforge doctor`
-      (read-only: config, Ollama reachability, pulled models, tier
-      coverage, exit 1 on hard errors). Auto-fix stays out until 5.3.
+      field-level errors and CLI hints (W3-1) plus `vibeforge doctor`,
+      now hardware-aware: optional `[hardware]` extra (psutil RAM +
+      nvidia-smi VRAM, both probe-free) cross-references every tier's
+      `approx_ram_gb`, and pulled-but-unconfigured models get a
+      ready-to-paste suggested tier (read-only: config, Ollama
+      reachability, pulled models, tier coverage, exit 1 on hard
+      errors). Auto-fix stays out until 5.3.
 - [x] Extras pulled in: `route --compare` concurrent multi-model runs,
       plugin-style custom task types (no core edits), 4 failure modes with
       actionable hints.

@@ -84,6 +84,23 @@ uniqueness and per-type minimums.
 `index.html` with no build step. **Add new fields, don't rename existing
 ones** — the page and the CLI both rely on the current shapes.
 
+## Hardware-aware checks
+
+`vibeforge/router/hardware.py` probes the machine twice and never with a
+hard dependency: RAM via psutil (the optional `[hardware]` extra) and VRAM
+via `nvidia-smi` when on PATH. Every probe takes an injectable
+implementation so tests run without touching real hardware:
+
+- `psutil_module` — a stub exposing `virtual_memory().total` (bytes);
+- `subprocess_runner` — a `subprocess.run` stand-in returning
+  `returncode/stdout/stderr`;
+- `which_fn` — PATH lookup stand-in for `nvidia-smi`.
+
+`Doctor.__init__` accepts a precomputed `HardwareInfo` or the probe
+slots directly; always inject them in tests — the suite must stay green
+with and without psutil installed. Hardware findings are advisory
+(`WARN`), never a hard failure.
+
 ## Tests
 
 - Every module gets a test module in `tests/`.

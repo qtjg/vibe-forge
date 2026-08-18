@@ -45,6 +45,14 @@ jobs:
         run: |
           pip install "vibe-forge[dashboard]" --no-index --find-links dist/
           vibeforge --version
+          pip uninstall -y vibe-forge
+
+      - name: Smoke-test the hardware extra install
+        run: |
+          pip install "vibe-forge[hardware]" --no-index --find-links dist/
+          python -c "import psutil; ok = psutil.virtual_memory().total > 0; assert ok, 'psutil probe failed'"
+          vibeforge --version
+          pip uninstall -y vibe-forge
 
       - name: Publish to TestPyPI
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.testpypi == 'true'

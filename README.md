@@ -188,6 +188,33 @@ To compare the heuristic scorer against the embedding scorer on the same 36 task
 vibeforge compare-scorers --output results/scorer-comparison.csv
 ```
 
+## Diagnostics
+
+`vibeforge doctor` is a read-only once-over of your install — it never
+changes anything:
+
+```bash
+vibeforge doctor
+```
+
+It validates the config, checks Ollama is reachable, flags configured tiers
+you haven't pulled (with the exact `ollama pull` command), and suggests a
+ready-to-paste tier entry for any pulled model that isn't in your
+`models.yaml` yet. Exit code 1 on hard errors (config, unreachable Ollama,
+no pulled model at all), 0 otherwise — safe for CI.
+
+Install the optional `[hardware]` extra for hardware-aware tier calibration:
+
+```bash
+pip install "vibe-forge[hardware]"    # optional: psutil + RAM detection
+```
+
+With it, doctor also reads system RAM (and GPU VRAM via `nvidia-smi` if
+present) and warns when a configured tier's `approx_ram_gb` can't fit —
+the exact chip that the next release's auto-scaffolded `models.yaml`
+(5.3 `init`) builds on. Without the extra, doctor tells you how to enable
+it and skips RAM checks gracefully.
+
 ## VS Code extension
 
 A minimal extension ([`vscode-extension/`](vscode-extension/)) routes the selected text
@@ -221,7 +248,7 @@ vibeforge/
 
 ```bash
 pip install -e ".[dev]"
-pytest            # 248 tests, no Ollama required (HTTP is mocked)
+pytest            # 276 tests, no Ollama required (HTTP is mocked)
 ruff check .      # lint
 ruff format --check .  # formatting
 ```

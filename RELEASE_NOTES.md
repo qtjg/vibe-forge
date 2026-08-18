@@ -49,7 +49,11 @@ mode explains itself.
   new `--type` values with zero core edits
 - **`vibeforge doctor`** — read-only health checks: config validity,
   Ollama reachability, pulled-model gaps (with the exact `ollama pull`
-  command), and tier coverage; exit 1 on hard errors
+  command), and tier coverage; now hardware-aware — with the optional
+  `[hardware]` extra it reads system RAM (and GPU VRAM via `nvidia-smi`)
+  and flags tiers whose `approx_ram_gb` can't fit, and suggests a
+  ready-to-paste tier entry for pulled models missing from `models.yaml`;
+  exit 1 on hard errors
 - **PyPI packaging** — `vibe-forge` on PyPI with a lean base install and an
   optional `[dashboard]` extra; release workflow publishes from tags via
   trusted publishing
@@ -72,8 +76,9 @@ Ollama is available.
 - `route --compare` ran 3 tiers concurrently in ~108 s (vs ~246 s serial)
   with a summary table
 - Wheel smoke tests in CI: base install (`vibeforge --version`, offline
-  route) and `[dashboard]` install (`vibeforge serve`) both pass
-- 248 tests, ruff clean, CI green on Python 3.11–3.13
+  route), `[dashboard]` install (`vibeforge serve`), and `[hardware]`
+  install (`vibeforge doctor`) all pass
+- 276 tests, ruff clean, CI green on Python 3.11–3.13
 
 ### Known limitations
 - `vibeforge doctor` is read-only advice; auto-fix (`doctor --fix`) ships

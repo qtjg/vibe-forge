@@ -40,10 +40,13 @@ def make_registry(text: str = MODELS) -> ModelRegistry:
 
 
 def test_healthy_install_reports_all_ok() -> None:
+    from vibeforge.router.hardware import HardwareInfo
+
     registry = make_registry()
     findings = Doctor(
         registry=registry,
         ollama_client_factory=lambda: make_ollama_client("qwen2.5:0.5b", "llama3.1:latest"),
+        hardware=HardwareInfo(total_ram_gb=15.6, ram_detected=True),
     ).run()
 
     assert all(f.level == OK for f in findings)
