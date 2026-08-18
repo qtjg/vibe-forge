@@ -47,6 +47,9 @@ mode explains itself.
   failure isolation)
 - **Plugin-style task types** — `custom_task_types` in `models.yaml` adds
   new `--type` values with zero core edits
+- **`vibeforge doctor`** — read-only health checks: config validity,
+  Ollama reachability, pulled-model gaps (with the exact `ollama pull`
+  command), and tier coverage; exit 1 on hard errors
 - **PyPI packaging** — `vibe-forge` on PyPI with a lean base install and an
   optional `[dashboard]` extra; release workflow publishes from tags via
   trusted publishing
@@ -73,8 +76,8 @@ Ollama is available.
 - 248 tests, ruff clean, CI green on Python 3.11–3.13
 
 ### Known limitations
-- `vibeforge doctor` (read-only config advice) is not built yet — errors
-  surface through `route`/`bench`/`serve` instead
+- `vibeforge doctor` is read-only advice; auto-fix (`doctor --fix`) ships
+  behind explicit confirmation in a later release
 - Embedding scorer needs a live Ollama with `nomic-embed-text` pulled; it
   falls back to the heuristic silently-but-honestly (counted in eval output)
 - Dashboard chain grouping (`chain_id`) and task chaining are v0.5.0 work

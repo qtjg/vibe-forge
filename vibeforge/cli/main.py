@@ -470,6 +470,48 @@ def compare_scorers(
     typer.echo(f"\nresults written to {path}")
 
 
+@app.command("doctor")
+def doctor(
+    host: str = typer.Option(
+        DEFAULT_OLLAMA_URL,
+        "--host",
+        show_default=True,
+        help="Base URL of the local Ollama server.",
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Print findings as JSON."),
+) -> None:
+    """Run read-only health checks on config + Ollama.
+
+    Checks that the models config is valid, the Ollama server is reachable,
+    every configured tier is pulled, and all complexity tiers are covered.
+    Nothing is modified: fixing is a separate, confirmed step. Exit code is
+    1 when any check is a hard error, 0 otherwise.
+    """
+    from vibeforge.doctor import ERROR, Doctor
+
+    findings = Doctor(host=host).run()
+    if as_json:
+        typer.echo(
+            json.dumps(
+                [{"level": f.level, "check": f.check, "message": f.message} for f in findings],
+                indent=2,
+            )
+        )
+    else:
+        for finding in findings:
+            icon = {"ok": "[ok]  ", "warn": "[warn]", "error": "[err] "}[finding.level]
+            typer.echo(f"{icon} {finding.check:<7} {finding.message}")
+        counts = {"ok": 0, "warn": 0, "error": 0}
+        for finding in findings:
+            counts[finding.level] += 1
+        typer.echo(
+            f"\ndoctor: {counts['ok']} ok, {counts['warn']} warning(s), {counts['error']} error(s)",
+            err=True,
+        )
+    if any(finding.level == ERROR for finding in findings):
+        raise typer.Exit(code=1)
+
+
 @app.command("serve")
 def serve(
     host: str = typer.Option("127.0.0.1", "--host", help="Interface to bind."),

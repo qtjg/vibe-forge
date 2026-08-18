@@ -380,3 +380,40 @@ def test_route_unknown_type_error_lists_custom_types(isolated: Path) -> None:
 
     assert result.exit_code == 1
     assert "translate" in result.stderr
+
+
+def test_doctor_reports_ok_and_exits_zero(isolated: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    isolated.write_text(MODELS_OK)
+    from vibeforge.doctor import OK, Finding
+
+    class FakeDoctor:
+        def __init__(self, host: str = "") -> None:
+            pass
+
+        def run(self) -> tuple:
+            return (Finding(OK, "config", "config ok"),)
+
+    monkeypatch.setattr("vibeforge.doctor.Doctor", FakeDoctor)
+
+    result = runner.invoke(cli_main.app, ["doctor"])
+    assert result.exit_code == 0
+    assert "[ok]" in result.stdout
+
+
+def test_doctor_exits_one_on_errors(isolated: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    isolated.write_text(MODELS_OK)
+    from vibeforge.doctor import ERROR, Finding
+
+    class FakeDoctor:
+        def __init__(self, host: str = "") -> None:
+            pass
+
+        def run(self) -> tuple:
+            return (Finding(ERROR, "ollama", "ollama is down"),)
+
+    monkeypatch.setattr("vibeforge.doctor.Doctor", FakeDoctor)
+
+    result = runner.invoke(cli_main.app, ["doctor"])
+    assert result.exit_code == 1
+    assert "[err]" in result.stdout
+    assert "1 error(s)" in result.stderr
