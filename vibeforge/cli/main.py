@@ -512,6 +512,74 @@ def doctor(
         raise typer.Exit(code=1)
 
 
+@app.command("train-scorer")
+def train_scorer(
+    input_path: Path = typer.Option(
+        Path("benchmark_results.csv"),
+        "--input",
+        help="benchmark_results.csv from `vibeforge bench` (fixed 36-task suite).",
+    ),
+    history: Path | None = typer.Option(
+        None,
+        "--history",
+        help="SQLite decision store (default: ~/.vibeforge/history.db).",
+    ),
+    output_dir: Path = typer.Option(
+        Path("results/ml-scorer"),
+        "--output",
+        help="Where to write dataset.csv and the trained scorer.",
+    ),
+) -> None:
+    """Build the ML scorer training dataset and fit a candidate model.
+
+    Phase 3.1 data-pipeline only: labels come from the fixed benchmark
+    suite plus (weakly validated) routing history from the dashboard's
+    SQLite store. The fitted artifact is saved to disk but is NOT wired
+    into routing yet -- that lands with the scorer itself.
+    """
+    from vibeforge.dashboard.store import default_db_path
+    from vibeforge.router.ml.pipeline import build_dataset, train_and_save
+
+    if not input_path.is_file():
+        typer.echo(
+            f"error: benchmark CSV not found: {input_path} (run `vibeforge bench` first)", err=True
+        )
+        raise typer.Exit(code=1)
+
+    history_path = history if history is not None else default_db_path()
+    if not history_path.is_file():
+        typer.echo(f"history: no store at {history_path} -- using benchmark CSV only")
+
+    dataset = build_dataset(
+        benchmark_csv=input_path,
+        history_db=history_path if history_path.is_file() else None,
+    )
+    typer.echo(
+        f"dataset: {len(dataset)} labeled rows "
+        f"({dataset.benchmark_rows} benchmark, {dataset.history_rows} history)"
+    )
+    if dataset.history_rejected:
+        typer.echo(
+            f"history: rejected {len(dataset.history_rejected)} rows "
+            f"-- {dataset.history_rejected[0]}"
+        )
+        for reason in dataset.history_rejected[1:4]:
+            typer.echo(f"history: rejected -- {reason}")
+
+    try:
+        csv_path, model_path = train_and_save(dataset, output_dir)
+    except ImportError:
+        typer.echo(
+            "error: the ML pipeline needs 'vibe-forge[ml]' -- "
+            "reinstall with: pip install 'vibe-forge[ml]'",
+            err=True,
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(f"artifacts: {csv_path}")
+    typer.echo(f"artifacts: {model_path}")
+    typer.echo("note: artifact is not routed until Phase 3.2 ships the MLScorer")
+
+
 @app.command("serve")
 def serve(
     host: str = typer.Option("127.0.0.1", "--host", help="Interface to bind."),

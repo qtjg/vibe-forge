@@ -36,10 +36,14 @@ Status legend: `[x]` shipped · `[~]` in progress · `[ ]` not started
 - [ ] **5.3 Follow-up** — `vibeforge init` (detect `ollama list`, scaffold
       `models.yaml`) can absorb `doctor --fix` later.
 
-## v0.4.0 — ML scorer (not started)
+## v0.4.0 — ML scorer (in progress)
 
-- [ ] **3.1 Scorer extension point** — the `Scorer` protocol is in place;
-      add an optional on-device model within it.
+- [~] **3.1 Scorer extension point** — the `Scorer` protocol is in place;
+      the training-data build shipped: `vibeforge/router/ml/` +
+      `vibeforge train-scorer` (labeled dataset from the benchmark suite
+      + weakly validated history, fitted artifact to disk — not routable
+      yet, `[ml]` extra keeps sklearn out of the base install). The
+      on-device scorer that consumes the artifact is next.
 - [ ] **3.2 Training signal** — fine-tune on the benchmark/eval CSVs, keeping
       the rule-based scorer as fallback/ensemble.
 - [ ] **3.3 Honest public numbers** — opt-in only if it beats the heuristic;

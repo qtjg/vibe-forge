@@ -165,6 +165,25 @@ on **12/36 tiers (33.3%)** but was ~two orders of magnitude slower (~100 ms/task
 ~0.2 ms, plus model load). Raw data: `results/scorer-comparison.csv`. This is a research
 artifact, not a claim of an improvement — agreement, not accuracy.
 
+### Experimental: ML-based scoring pipeline (WIP, not routable)
+
+`vibeforge train-scorer` builds the labeled dataset and fits a candidate classifier —
+data-pipeline only; **nothing routes through it yet** (the scorer itself is the next
+phase):
+
+```bash
+pip install "vibe-forge[ml]"        # optional: scikit-learn (lazy, never in core)
+vibeforge train-scorer --input results/benchmark_results.csv --history ~/.vibeforge/history.db
+```
+
+Labels come from two sources: the fixed 36-task benchmark suite (task/tier pairs, one row
+per task) and accumulated routing history from the dashboard's SQLite store — weakly
+validated (rows that errored or ran past a per-tier latency cap are dropped and counted).
+With little or no history the command still works off the benchmark CSV alone and says how
+much real history it found. It writes `dataset.csv` (labeled rows, with `source`) and
+`scorer.joblib` (fitted model) to `results/ml-scorer/`. Predictions avoid the embedding
+scorer's ~100 ms/task cost: the fitted forest answers in single-digit milliseconds.
+
 ## Benchmarking
 
 `vibeforge bench` runs the fixed 36-task suite against every model in your registry
@@ -232,6 +251,7 @@ vibeforge/
 │   ├── task_types.py     # TaskTypeRegistry: built-ins + custom types from models.yaml
 │   ├── complexity.py     # Scorer protocol + HeuristicScorer (rule-based)
 │   ├── embedding.py      # EmbeddingScorer (experimental, nearest-neighbor)
+│   ├── ml/               # training-data pipeline: labeled dataset + fitted artifact
 │   ├── registry.py       # ModelRegistry: models.yaml -> cheapest covering tier
 │   ├── schema.py         # pydantic validation of the models config
 │   ├── policy.py         # PolicyRouter: score -> pick -> history

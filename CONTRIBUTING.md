@@ -101,6 +101,23 @@ slots directly; always inject them in tests — the suite must stay green
 with and without psutil installed. Hardware findings are advisory
 (`WARN`), never a hard failure.
 
+## ML pipeline extension points
+
+`vibeforge/router/ml/` builds the training dataset and fits a classifier —
+and must stay out of the router's hot path. Rules:
+
+- **No ml imports at module load** — scikit-learn is imported lazily inside
+  `default_model_factory`; the base install (and CI without `[ml]`) must
+  never load it. The `vibeforge train-scorer` command turns an `ImportError`
+  into an install hint.
+- **The model-fit step is injectable** — `train_and_save(..., model_factory=...)`
+  takes a factory so tests stub the fit with a tiny class and verify wiring
+  (`dataset.csv` + `scorer.joblib` written, counts correct), never real
+  training.
+- New label sources add a branch in `build_dataset`, not a second DB path —
+  history reads flow through `vibeforge.dashboard.store.HistoryDB`, the same
+  store the dashboard uses.
+
 ## Tests
 
 - Every module gets a test module in `tests/`.

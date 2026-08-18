@@ -39,6 +39,14 @@ dashboard = [
 hardware = [
     "psutil>=5.9",
 ]
+# scikit-learn: the ML scorer's training pipeline needs a classifier that
+# predicts in milliseconds, not the ~100 ms the embedding scorer costs.
+# A small random forest on the pipeline's 3-feature vectors trains in
+# well under a second and predicts in microseconds -- and importing it
+# stays lazy, so the base install never pulls sklearn.
+ml = [
+    "scikit-learn>=1.4",
+]
 dev = [
     "pytest>=8.0",
     "ruff>=0.4.0",
