@@ -33,3 +33,14 @@ htmlcov/
 .idea/
 .vscode/
 *.swp
+# Python version managers
+.python-version
+.pdm-python
+.pdm-build/
+
+# Coverage HTML
+coverage.xml
+*.cover
+
+# Jupyter
+.ipynb_checkpoints/
