@@ -143,3 +143,7 @@ docs: document dashboard API contract
 - [ ] `ruff check .` clean
 - [ ] `ruff format --check .` clean
 - [ ] Docs updated (README/CONTRIBUTING) where behavior changed
+## Security disclosures
+
+Do not open a public issue for security vulnerabilities. See
+[SECURITY.md](SECURITY.md) for the private reporting channel and scope.
